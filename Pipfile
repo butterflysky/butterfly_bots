@@ -4,8 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-discord = "latest"
-openapi = "latest"
+discord = "*"
+openai = "*"
 
 [dev-packages]
 
