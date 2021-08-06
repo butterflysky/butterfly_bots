@@ -135,7 +135,7 @@ async def story(ctx, *words: str):
     """Returns a short story based on your prompt"""
     message = ' '.join(words)
     prompt = (
-        "You're a bestselling author of transhumanist stories. Write a short story about the following prompt:\n\n"
+        "You're a bestselling author. Write a short story about the following prompt:\n\n"
         f"Prompt: {message}\n"
         "Your story:"
     )
