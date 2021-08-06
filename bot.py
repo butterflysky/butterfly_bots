@@ -110,6 +110,13 @@ async def raw_openai(ctx, prompt, *stops: str):
 
 
 @bot.command()
+async def flush_chat_history(ctx):
+    hist = exchanges.setdefault(ctx.author, [])
+    exchanges[ctx.author] = []
+    await ctx.send("I have forgotten everything we discussed.")
+
+
+@bot.command()
 async def show_chat_history(ctx):
     history = ""
     for previous_exchange in exchanges.setdefault(ctx.author, []):
