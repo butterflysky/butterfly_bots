@@ -206,6 +206,8 @@ async def on_command_error(ctx, exc):
         ctx.invoked_with = invoker
         ctx.command = bot.all_commands.get(invoker)
         await bot.invoke(ctx)
+    else:
+        raise
 
 
 bot.run(os.getenv('DISCORD_API_KEY'))
