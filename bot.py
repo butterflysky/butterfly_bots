@@ -37,6 +37,9 @@ def openai_complete(prompt: str, stops: list[str], strip=True):
     try:
         logger.info(f"sending the following prompt: {prompt}")
 
+        if stops is None or len(stops) == 0:
+            stops = ["\n\n"]
+
         response = openai.Completion.create(
             engine="davinci-instruct-beta",
             prompt=prompt,
