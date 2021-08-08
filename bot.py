@@ -22,10 +22,6 @@ intents.members = True
 intents.typing = False
 intents.presences = False
 
-ignored_users = ['buckybot#2514']
-
-botname = 'Adonis Blue'
-
 description = "butterfly bot alpha"
 bot = commands.Bot(command_prefix=commands.when_mentioned_or('!'), description=description, intents=intents,
                    strip_after_prefix=True)
@@ -46,7 +42,7 @@ def openai_complete(prompt: str, stops: list[str], strip=True):
             temperature=0.9,
             max_tokens=1500,
             top_p=1,
-            frequency_penalty=0.0,
+            frequency_penalty=0.2,
             presence_penalty=0.6,
             stop=stops,
         )
@@ -114,8 +110,7 @@ async def raw_openai(ctx, prompt, *stops: str):
 
 @bot.command()
 async def flush_chat_history(ctx):
-    hist = exchanges.setdefault(ctx.author, [])
-    exchanges[ctx.author] = []
+    exchanges.setdefault(ctx.author, []).clear()
     await ctx.send("I have forgotten everything we discussed.")
 
 
