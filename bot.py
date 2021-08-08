@@ -23,8 +23,8 @@ intents.typing = False
 intents.presences = False
 
 description = "butterfly bot alpha"
-bot = commands.Bot(command_prefix=commands.when_mentioned_or('!'), description=description, intents=intents,
-                   strip_after_prefix=True)
+adonis_blue = commands.Bot(command_prefix=commands.when_mentioned_or('!'), description=description, intents=intents,
+                           strip_after_prefix=True)
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
@@ -87,125 +87,119 @@ async def get_and_send_openai_response(ctx, prompt, stops, strip=True):
                                     mention_author=True)
 
 
-# dictionary to look up context based on user
-exchanges = {}
+class OpenAIBot(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        # dictionary to look up chat context based on user
+        self._exchanges = {}
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        logger.info(f'Logged on as {adonis_blue.user.name}, {adonis_blue.user.id}')
+
+    @commands.command(description='Echoes the message back for testing purposes')
+    async def echo(self, ctx, message: str):
+        """Echoes the message back to the channel"""
+        await ctx.send(message)
+
+    @commands.command()
+    async def raw_openai(self, ctx, prompt, *stops: str):
+        """Sends a raw openai completion request given a prompt and a list of stops"""
+        await get_and_send_openai_response(ctx, prompt, list(stops))
+
+    @commands.command()
+    async def flush_chat_history(self, ctx):
+        self._exchanges.setdefault(ctx.author, []).clear()
+        await ctx.send("I have forgotten everything we discussed.")
+
+    @commands.command()
+    async def show_chat_history(self, ctx):
+        history = ""
+        for previous_exchange in self._exchanges.setdefault(ctx.author, []):
+            history += previous_exchange
+
+        if len(history) == 0:
+            history = "we haven't chatted lately" \
+                      ""
+        await ctx.send(content=f"```{history}```",
+                       reference=ctx.message,
+                       mention_author=True)
+
+    @commands.command()
+    async def story(self, ctx, *words: str):
+        """Returns a short story based on your prompt"""
+        message = ' '.join(words)
+        prompt = (
+            "You're a bestselling author. Write a short story about the following prompt:\n\n"
+            f"Prompt: {message}\n"
+            "Your story:"
+        )
+        await get_and_send_openai_response(ctx, prompt, [" Your story:"])
+
+    @commands.command()
+    async def tarot(self, ctx, *words: str):
+        """Returns a tarot reading based on your prompt"""
+        message = ' '.join(words)
+        prompt = (
+            f"You're a tarot reader. Give a tarot reading for the following prompt:\n\n"
+            f"Prompt: {message}\n"
+            f"Your reading:"
+        )
+        await get_and_send_openai_response(ctx, prompt, [" Your reading:"])
+
+    @commands.command()
+    async def code(self, ctx, language: str, *words: str):
+        """Returns code based on your prompt"""
+        message = ' '.join(words)
+        if message == '':
+            return
+        prompt = (
+            f"Write a function in {language} that fits the following prompt:\n\n"
+            f"Prompt: {message}\n"
+            f"Your code:"
+        )
+        await get_and_send_openai_response(ctx, prompt, [" Your code:"], strip=False)
+
+    @commands.command()
+    async def chat(self, ctx, *words: str):
+        """Sends a prompt to openai and returns the result, keeping 5 exchanges as context"""
+        stops = ["\n", f" {ctx.author}:", f" {self.bot.user.name}:"]
+        message = ' '.join(words)
+        prompt = f"You're a witty, polite, insightful, and very kind conversationalist. In up to a few sentences, " \
+                 f"continue the following conversation with your friend {ctx.author}\n\n "
+
+        for previous_exchange in self._exchanges.setdefault(ctx.author, []):
+            prompt += previous_exchange
+
+        new_exchange = (
+            f"{ctx.author}: {message}\n"
+            f"{self.bot.user.name}:"
+        )
+
+        prompt += new_exchange
+
+        answer = openai_complete(prompt, stops, strip=True)
+        await ctx.send(answer)
+
+        # update exchanges for next chat
+        new_exchange += f" {answer}\n"
+        self._exchanges[ctx.author].append(new_exchange)
+        if len(self._exchanges[ctx.author]) > 5:
+            self._exchanges[ctx.author] = self._exchanges[ctx.author][1:]
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, exc):
+        if exc.__class__ == commands.errors.CommandNotFound:
+            invoker = 'chat'
+            ctx.message.content = f"{ctx.invoked_with} {ctx.message.content}"
+            ctx.view.index = ctx.view.previous
+
+            ctx.invoked_with = invoker
+            ctx.command = self.bot.all_commands.get(invoker)
+            await self.bot.invoke(ctx)
+        else:
+            raise
 
 
-@bot.event
-async def on_ready():
-    logger.info(f'Logged on as {bot.user.name}, {bot.user.id}')
-
-
-@bot.command(description='Echoes the message back for testing purposes')
-async def echo(ctx, message: str):
-    """Echoes the message back to the channel"""
-    await ctx.send(message)
-
-
-@bot.command()
-async def raw_openai(ctx, prompt, *stops: str):
-    """Sends a raw openai completion request given a prompt and a list of stops"""
-    await get_and_send_openai_response(ctx, prompt, list(stops))
-
-
-@bot.command()
-async def flush_chat_history(ctx):
-    exchanges.setdefault(ctx.author, []).clear()
-    await ctx.send("I have forgotten everything we discussed.")
-
-
-@bot.command()
-async def show_chat_history(ctx):
-    history = ""
-    for previous_exchange in exchanges.setdefault(ctx.author, []):
-        history += previous_exchange
-
-    if len(history) == 0:
-        history = "we haven't chatted lately" \
-                  ""
-    await ctx.send(content=f"```{history}```",
-                   reference=ctx.message,
-                   mention_author=True)
-
-
-@bot.command()
-async def story(ctx, *words: str):
-    """Returns a short story based on your prompt"""
-    message = ' '.join(words)
-    prompt = (
-        "You're a bestselling author. Write a short story about the following prompt:\n\n"
-        f"Prompt: {message}\n"
-        "Your story:"
-    )
-    await get_and_send_openai_response(ctx, prompt, [" Your story:"])
-
-
-@bot.command()
-async def tarot(ctx, *words: str):
-    """Returns a tarot reading based on your prompt"""
-    message = ' '.join(words)
-    prompt = (
-        f"You're a tarot reader. Give a tarot reading for the following prompt:\n\n"
-        f"Prompt: {message}\n"
-        f"Your reading:"
-    )
-    await get_and_send_openai_response(ctx, prompt, [" Your reading:"])
-
-
-@bot.command()
-async def code(ctx, language: str, *words: str):
-    """Returns code based on your prompt"""
-    message = ' '.join(words)
-    if message == '':
-        return
-    prompt = (
-        f"Write a function in {language} that fits the following prompt:\n\n"
-        f"Prompt: {message}\n"
-        f"Your code:"
-    )
-    await get_and_send_openai_response(ctx, prompt, [" Your code:"], strip=False)
-
-
-@bot.command()
-async def chat(ctx, *words: str):
-    """Sends a prompt to openai and returns the result, keeping 5 exchanges as context"""
-    stops = ["\n", f" {ctx.author}:", f" {bot.user.name}:"]
-    message = ' '.join(words)
-    prompt = f"You're a witty, polite, insightful, and very kind conversationalist. In up to a few sentences, " \
-             f"continue the following conversation with your friend {ctx.author}\n\n "
-
-    for previous_exchange in exchanges.setdefault(ctx.author, []):
-        prompt += previous_exchange
-
-    new_exchange = (
-        f"{ctx.author}: {message}\n"
-        f"{bot.user.name}:"
-    )
-
-    prompt += new_exchange
-
-    answer = openai_complete(prompt, stops, strip=True)
-    await ctx.send(answer)
-
-    # update exchanges for next chat
-    new_exchange += f" {answer}\n"
-    exchanges[ctx.author].append(new_exchange)
-    if len(exchanges[ctx.author]) > 5:
-        exchanges[ctx.author] = exchanges[ctx.author][1:]
-
-
-@bot.event
-async def on_command_error(ctx, exc):
-    if exc.__class__ == commands.errors.CommandNotFound:
-        invoker = 'chat'
-        ctx.message.content = f"{ctx.invoked_with} {ctx.message.content}"
-        ctx.view.index = ctx.view.previous
-
-        ctx.invoked_with = invoker
-        ctx.command = bot.all_commands.get(invoker)
-        await bot.invoke(ctx)
-    else:
-        raise
-
-
-bot.run(os.getenv('DISCORD_API_KEY'))
+adonis_blue.add_cog(OpenAIBot(adonis_blue))
+adonis_blue.run(os.getenv('DISCORD_API_KEY'))
