@@ -8,4 +8,7 @@ setup(name='butterfly_bot',
       author='Lina Edwards',
       author_email='lina@butterflysky.dev',
       packages=['butterfly_bot'],
+      install_requires=[
+          'openai>=0.10.2',
+      ]
       )
