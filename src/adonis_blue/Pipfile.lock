@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "231d7b07cf5e7067fd1d2d9f48523e3bb3632cf609f1e8df72cb7479c3ba5c3b"
+            "sha256": "d0c12d472c803c1fecb421823a9ba450f6164b5b3f30d52af0468daa2e1fca8a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -76,8 +76,9 @@
             "version": "==21.2.0"
         },
         "butterfly-bot": {
-            "editable": true,
-            "path": "./../src"
+            "editable": false,
+            "path": "./../lib",
+            "version": "==0.1.0"
         },
         "certifi": {
             "hashes": [

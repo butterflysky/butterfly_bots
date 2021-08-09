@@ -6,7 +6,10 @@ name = "pypi"
 [packages]
 discord = "*"
 python-dotenv = "*"
-butterfly_bot = {editable = true,path = "../src"}
+# toggle editable = true for convenience when developing locally,
+# but only commit with it set to false so Pipfile.lock can be
+# relied on for deployment
+butterfly_bot = {editable = false,path = "../lib"}
 
 [dev-packages]
 

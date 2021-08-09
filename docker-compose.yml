@@ -1,0 +1,12 @@
+version: '3'
+services:
+  adonis_blue:
+    build:
+      context: .
+      args:
+        - BOT_NAME=adonis_blue
+    image: butterfly/adonis_blue:0.1.0
+    env_file:
+      - ./src/adonis_blue/.env
+    container_name: adonis_blue
+    restart: always
