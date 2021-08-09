@@ -89,7 +89,7 @@ class OpenAIBot(commands.Cog):
     @commands.command()
     async def chat(self, ctx, *words: str):
         """Sends a prompt to openai and returns the result, keeping 5 exchanges as context"""
-        stops = ["\n", f" {ctx.author}:", f" {self.bot.user.name}:"]
+        stops = [f"\n{ctx.author}:", f"\n{self.bot.user.name}:"]
         message = ' '.join(words)
         prompt = f"You're a witty, polite, insightful, and very kind conversationalist. In up to a few sentences, " \
                  f"continue the following conversation with your friend {ctx.author}\n\n "
