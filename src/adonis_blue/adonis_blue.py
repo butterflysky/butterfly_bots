@@ -27,4 +27,5 @@ adonis_blue = commands.Bot(
 )
 
 adonis_blue.add_cog(butterfly_bot.cogs.OpenAIBot(adonis_blue))
+adonis_blue.add_cog(butterfly_bot.cogs.UtilityBot(adonis_blue))
 adonis_blue.run(os.getenv("DISCORD_API_KEY"))

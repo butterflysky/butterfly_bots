@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import asyncio
+import datetime
 import logging
 import butterfly_bot.openai_utils as openai_utils
 import butterfly_bot.utils
@@ -125,3 +127,29 @@ class OpenAIBot(commands.Cog):
             await self.bot.invoke(ctx)
         else:
             raise exc
+
+
+class UtilityBot(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.command()
+    async def uptime(self, ctx, *words):
+        logger.debug('running uptime command asynchronously')
+        proc = await asyncio.create_subprocess_shell(
+            'stat --printf="%X" /proc/1/cmdline',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+
+        if stdout:
+            stdout = stdout.decode()
+            start_time = datetime.datetime.fromtimestamp(float(stdout))
+            logger.debug(f'[stdout]: {stdout}')
+            uptime = datetime.datetime.now() - start_time
+            await ctx.send(f'{butterfly_bot.utils.pretty_time_delta(uptime.total_seconds())}')
+        if stderr:
+            stderr = stderr.decode()
+            logger.debug(f'[stderr]: {stderr}')
+            await ctx.send(f'process exited with {proc.returncode}\n[stderr]: {stderr}')
