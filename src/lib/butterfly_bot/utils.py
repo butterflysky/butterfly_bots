@@ -8,6 +8,8 @@ class ResponseTarget(Enum):
 
 async def send_responses(ctx, parts, code_block=True, response_target=ResponseTarget.LAST_MESSAGE):
     respond_to = ctx.message
+    if isinstance(parts, str):
+        parts = [parts]
     for part in parts:
         if code_block:
             part = f"```{part}```"
