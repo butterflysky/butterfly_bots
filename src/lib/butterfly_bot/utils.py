@@ -46,6 +46,6 @@ async def paginate(response, split_length=1994):
             split_point = split_length
 
         parts.append(response[:split_point])
-        response = response[split_point + 1:]
+        response = response[split_point + 1 :]
     parts.append(response)
     return parts

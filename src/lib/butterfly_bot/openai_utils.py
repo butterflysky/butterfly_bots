@@ -66,13 +66,14 @@ class ExchangeManager:
     def get(self, ctx):
         return str(
             self.get_channel_exchanges(ctx).setdefault(
-                _hash_ctx(ctx),
-                ExchangeBuffer(max_size=self.max_size)))
+                _hash_ctx(ctx), ExchangeBuffer(max_size=self.max_size)
+            )
+        )
 
     def append(self, ctx, exchange: str):
         self.get_channel_exchanges(ctx).setdefault(
-            _hash_ctx(ctx),
-            ExchangeBuffer(max_size=self.max_size)).append(exchange)
+            _hash_ctx(ctx), ExchangeBuffer(max_size=self.max_size)
+        ).append(exchange)
 
     def clear(self, ctx):
         key = _hash_ctx(ctx)
@@ -81,14 +82,14 @@ class ExchangeManager:
 
 
 async def complete_with_openai(
-        prompt: str,
-        stops: list[str],
-        strip=True,
-        temperature=0.9,
-        max_tokens=1500,
-        top_p=1,
-        frequency_penalty=0.2,
-        presence_penalty=0.6,
+    prompt: str,
+    stops: list[str],
+    strip=True,
+    temperature=0.9,
+    max_tokens=1500,
+    top_p=1,
+    frequency_penalty=0.2,
+    presence_penalty=0.6,
 ):
     try:
         logger.info(f"sending the following prompt: {prompt}")

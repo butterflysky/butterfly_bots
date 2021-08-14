@@ -15,7 +15,8 @@ from .openai_utils import (
 from .utils import (
     ResponseTarget,
     pretty_time_delta,
-    send_responses, paginate,
+    send_responses,
+    paginate,
 )
 
 
@@ -113,7 +114,11 @@ class OpenAIBot(commands.Cog):
         """Sends a prompt to openai and returns the result, keeping 5 exchanges as context"""
         # sort and concatenate each of the mentioned usernames then hash the resulting string
         # as a key for the exchange cache
-        stops = [f"\n{ctx.author.display_name}:", f"\n{self.bot.user.display_name}:", "\n"]
+        stops = [
+            f"\n{ctx.author.display_name}:",
+            f"\n{self.bot.user.display_name}:",
+            "\n",
+        ]
         message = await self.preprocess_message(ctx, words)
         prompt = (
             f"Your name is {self.bot.user.display_name}. You're having a polite conversation with one or more friends. "
@@ -124,7 +129,9 @@ class OpenAIBot(commands.Cog):
         prompt += self.exchange_manager.get(ctx)
 
         # add new exchange prompt
-        new_exchange = f"{ctx.author.display_name}: {message}\n" f"{self.bot.user.display_name}:"
+        new_exchange = (
+            f"{ctx.author.display_name}: {message}\n" f"{self.bot.user.display_name}:"
+        )
 
         # todo: what happens if there's no answer?
         answer = await complete_with_openai(prompt + new_exchange, stops, strip=True)
@@ -135,7 +142,9 @@ class OpenAIBot(commands.Cog):
         self.exchange_manager.append(ctx, new_exchange)
 
     async def preprocess_message(self, ctx, words):
-        message = " ".join([await self.member_name_converter.convert(ctx, word) for word in words])
+        message = " ".join(
+            [await self.member_name_converter.convert(ctx, word) for word in words]
+        )
         return message
 
     @commands.Cog.listener()
@@ -171,9 +180,7 @@ class UtilityBot(commands.Cog):
             start_time = datetime.datetime.fromtimestamp(float(stdout))
             logger.debug(f"[stdout]: {stdout}")
             uptime = datetime.datetime.now() - start_time
-            await ctx.send(
-                f"{pretty_time_delta(uptime.total_seconds())}"
-            )
+            await ctx.send(f"{pretty_time_delta(uptime.total_seconds())}")
         if stderr:
             stderr = stderr.decode()
             logger.debug(f"[stderr]: {stderr}")
