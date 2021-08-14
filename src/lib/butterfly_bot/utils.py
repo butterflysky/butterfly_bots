@@ -35,3 +35,17 @@ def pretty_time_delta(seconds):
         return "%dm%ds" % (minutes, seconds)
     else:
         return "%ds" % (seconds,)
+
+
+async def paginate(response, split_length=1994):
+    parts = []
+    while len(response) > split_length:
+        split_point = response[:split_length].rfind(" ")
+
+        if split_point == -1:
+            split_point = split_length
+
+        parts.append(response[:split_point])
+        response = response[split_point + 1:]
+    parts.append(response)
+    return parts
