@@ -2,9 +2,21 @@
 import asyncio
 import datetime
 import logging
-import butterfly_bot.openai_utils as openai_utils
-import butterfly_bot.utils
+
 from discord.ext import commands
+
+from .discord_utils import MemberNameConverter
+
+from .openai_utils import (
+    ExchangeManager,
+    complete_with_openai,
+)
+
+from .utils import (
+    ResponseTarget,
+    pretty_time_delta,
+    send_responses, paginate,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -13,24 +25,34 @@ logger = logging.getLogger(__name__)
 class OpenAIBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # dictionary to look up chat context based on user
-        self._exchanges = {}
+        self.exchange_manager = ExchangeManager(max_size=5)
+        self.member_name_converter = MemberNameConverter()
 
-    async def send_openai_completion(self, ctx, prompt, stops,
-                                     response_target=butterfly_bot.utils.ResponseTarget.LAST_MESSAGE):
-        await butterfly_bot.utils.send_responses(
-            ctx,
-            await openai_utils.get_openai_completion(prompt, list(stops)),
-            response_target = response_target)
+    async def send_openai_completion(
+        self,
+        ctx,
+        prompt,
+        stops,
+        response_target=ResponseTarget.LAST_MESSAGE,
+    ):
+        async with ctx.typing():
+            response = await complete_with_openai(prompt, stops)
+
+            await send_responses(
+                ctx,
+                await paginate(response),
+                response_target=response_target,
+            )
 
     @commands.Cog.listener()
     async def on_ready(self):
-        logger.info(f'Logged on as {self.bot.user.name}, {self.bot.user.id}')
+        logger.info(f"Logged on as {self.bot.user.name}, {self.bot.user.id}")
 
-    @commands.command(description='Echoes the message back for testing purposes')
-    async def echo(self, ctx, message: str):
+    @commands.command(description="Echoes the message back for testing purposes")
+    async def echo(self, ctx, *words):
         """Echoes the message back to the channel"""
-        await butterfly_bot.utils.send_responses(ctx, (message), code_block = False)
+        message = await self.preprocess_message(ctx, words)
+        await send_responses(ctx, message, code_block=False)
 
     @commands.command()
     async def raw_openai(self, ctx, prompt, *stops: str):
@@ -39,24 +61,22 @@ class OpenAIBot(commands.Cog):
 
     @commands.command()
     async def flush_chat_history(self, ctx):
-        self._exchanges.setdefault(ctx.author, []).clear()
+        self.exchange_manager.clear(ctx)
         await ctx.send("I have forgotten everything we discussed.")
 
     @commands.command()
     async def show_chat_history(self, ctx):
-        history = []
-        for previous_exchange in self._exchanges.setdefault(ctx.author, []):
-            history.append(previous_exchange)
+        exchanges = self.exchange_manager.get(ctx)
 
-        if len(history) == 0:
-            history.append("we haven't chatted lately")
+        if len(exchanges) == 0:
+            exchanges = "we haven't chatted lately"
 
-        await butterfly_bot.utils.send_responses(ctx, history)
+        await send_responses(ctx, exchanges)
 
     @commands.command()
     async def story(self, ctx, *words: str):
         """Returns a short story based on your prompt"""
-        message = ' '.join(words)
+        message = await self.preprocess_message(ctx, words)
         prompt = (
             "You're a bestselling author. Write a short story about the following prompt:\n\n"
             f"Prompt: {message}\n"
@@ -67,7 +87,7 @@ class OpenAIBot(commands.Cog):
     @commands.command()
     async def tarot(self, ctx, *words: str):
         """Returns a tarot reading based on your prompt"""
-        message = ' '.join(words)
+        message = await self.preprocess_message(ctx, words)
         prompt = (
             f"You're a tarot reader. Give a tarot reading for the following prompt:\n\n"
             f"Prompt: {message}\n"
@@ -78,8 +98,8 @@ class OpenAIBot(commands.Cog):
     @commands.command()
     async def code(self, ctx, language: str, *words: str):
         """Returns code based on your prompt"""
-        message = ' '.join(words)
-        if message == '':
+        message = await self.preprocess_message(ctx, words)
+        if message == "":
             return
         prompt = (
             f"Write a function in {language} that fits the following prompt:\n\n"
@@ -91,34 +111,37 @@ class OpenAIBot(commands.Cog):
     @commands.command()
     async def chat(self, ctx, *words: str):
         """Sends a prompt to openai and returns the result, keeping 5 exchanges as context"""
-        stops = [f"\n{ctx.author}:", f"\n{self.bot.user.name}:"]
-        message = ' '.join(words)
-        prompt = f"You're a witty, polite, insightful, and very kind conversationalist. In up to a few sentences, " \
-                 f"continue the following conversation with your friend {ctx.author}\n\n "
-
-        for previous_exchange in self._exchanges.setdefault(ctx.author, []):
-            prompt += previous_exchange
-
-        new_exchange = (
-            f"{ctx.author}: {message}\n"
-            f"{self.bot.user.name}:"
+        # sort and concatenate each of the mentioned usernames then hash the resulting string
+        # as a key for the exchange cache
+        stops = [f"\n{ctx.author.display_name}:", f"\n{self.bot.user.display_name}:", "\n"]
+        message = await self.preprocess_message(ctx, words)
+        prompt = (
+            f"Your name is {self.bot.user.display_name}. You're having a polite conversation with one or more friends. "
+            f"Continue the following conversation with your friends:\n\n"
         )
 
-        prompt += new_exchange
+        # append previous exchanges to the prompt
+        prompt += self.exchange_manager.get(ctx)
 
-        answer = openai_utils.complete(prompt, stops, strip=True)
+        # add new exchange prompt
+        new_exchange = f"{ctx.author.display_name}: {message}\n" f"{self.bot.user.display_name}:"
+
+        # todo: what happens if there's no answer?
+        answer = await complete_with_openai(prompt + new_exchange, stops, strip=True)
         await ctx.send(answer)
 
         # update exchanges for next chat
         new_exchange += f" {answer}\n"
-        self._exchanges[ctx.author].append(new_exchange)
-        if len(self._exchanges[ctx.author]) > 5:
-            self._exchanges[ctx.author] = self._exchanges[ctx.author][1:]
+        self.exchange_manager.append(ctx, new_exchange)
+
+    async def preprocess_message(self, ctx, words):
+        message = " ".join([await self.member_name_converter.convert(ctx, word) for word in words])
+        return message
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, exc):
         if exc.__class__ == commands.errors.CommandNotFound:
-            invoker = 'chat'
+            invoker = "chat"
             ctx.message.content = f"{ctx.invoked_with} {ctx.message.content}"
             ctx.view.index = ctx.view.previous
 
@@ -134,22 +157,24 @@ class UtilityBot(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    async def uptime(self, ctx, *words):
-        logger.debug('running uptime command asynchronously')
+    async def uptime(self, ctx):
+        logger.debug("running uptime command asynchronously")
         proc = await asyncio.create_subprocess_shell(
             'stat --printf="%X" /proc/1/cmdline',
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
 
         if stdout:
             stdout = stdout.decode()
             start_time = datetime.datetime.fromtimestamp(float(stdout))
-            logger.debug(f'[stdout]: {stdout}')
+            logger.debug(f"[stdout]: {stdout}")
             uptime = datetime.datetime.now() - start_time
-            await ctx.send(f'{butterfly_bot.utils.pretty_time_delta(uptime.total_seconds())}')
+            await ctx.send(
+                f"{pretty_time_delta(uptime.total_seconds())}"
+            )
         if stderr:
             stderr = stderr.decode()
-            logger.debug(f'[stderr]: {stderr}')
-            await ctx.send(f'process exited with {proc.returncode}\n[stderr]: {stderr}')
+            logger.debug(f"[stderr]: {stderr}")
+            await ctx.send(f"process exited with {proc.returncode}\n[stderr]: {stderr}")
