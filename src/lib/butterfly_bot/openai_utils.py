@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+from enum import Enum
 
 import openai
 
@@ -12,6 +13,11 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class NoOpenAIResponse(Exception):
     pass
+
+
+class ExchangeKey(Enum):
+    CHANNEL = 1
+    MENTIONS = 2
 
 
 class ExchangeBuffer:
@@ -46,7 +52,10 @@ class ExchangeBuffer:
         )
 
 
-def _hash_ctx(ctx):
+def _hash_ctx(ctx, exchange_key: ExchangeKey = ExchangeKey.CHANNEL):
+    if exchange_key == ExchangeKey.CHANNEL:
+        return frozenset([1])
+
     deduped_participants = [ctx.message.author.id]
     for m in ctx.message.mentions:
         if m.id != ctx.bot.user.id:
