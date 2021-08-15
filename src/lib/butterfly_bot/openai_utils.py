@@ -87,7 +87,7 @@ class ExchangeManager:
     def clear(self, ctx):
         key = _hash_ctx(ctx)
         if key in self.get_channel_exchanges(ctx).keys():
-            del self.get_channel_exchanges()[key]
+            del self.get_channel_exchanges(ctx)[key]
 
 
 async def complete_with_openai(
