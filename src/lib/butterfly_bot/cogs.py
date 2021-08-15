@@ -121,7 +121,7 @@ class OpenAIBot(commands.Cog):
         ]
         message = await self.preprocess_message(ctx, words)
         prompt = (
-            f"Your name is {self.bot.user.display_name}. You're having a polite conversation with one or more friends. "
+            f"Your name is {self.bot.user.display_name}. You're thoughtful, kind, and witty. "
             f"Continue the following conversation with your friends:\n\n"
         )
 
