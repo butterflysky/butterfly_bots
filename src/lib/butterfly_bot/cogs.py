@@ -158,6 +158,7 @@ class OpenAIBot(commands.Cog):
             ctx.command = self.bot.all_commands.get(invoker)
             await self.bot.invoke(ctx)
         else:
+            await ctx.send(f"an exception occurred: {exc}")
             raise exc
 
 
