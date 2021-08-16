@@ -10,6 +10,7 @@ python-dotenv = "*"
 # but only commit with it set to false so Pipfile.lock can be
 # relied on for deployment
 butterfly_bot = {editable = false,path = "../lib"}
+bump2version = "*"
 
 [dev-packages]
 
