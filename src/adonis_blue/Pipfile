@@ -11,6 +11,7 @@ python-dotenv = "*"
 # relied on for deployment
 butterfly_bot = {editable = false,path = "../lib"}
 bump2version = "*"
+discord-py-interactions = "*"
 
 [dev-packages]
 

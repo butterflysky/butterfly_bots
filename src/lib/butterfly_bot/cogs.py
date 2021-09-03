@@ -2,8 +2,11 @@
 import asyncio
 import datetime
 import logging
+import os
 
 from discord.ext import commands
+from discord_slash import SlashContext
+from discord_slash.cog_ext import cog_slash
 
 from .discord_utils import MemberNameConverter
 
@@ -22,12 +25,18 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+GUILD_IDS = [int(guild_id) for guild_id in os.getenv("GUILD_IDS").split(",")]
+
 
 class OpenAIBot(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.exchange_manager = ExchangeManager(max_size=5)
         self.member_name_converter = MemberNameConverter()
+
+    @cog_slash(name="ping", guild_ids=GUILD_IDS)
+    async def ping(self, ctx: SlashContext):
+        await ctx.send(content="pong")
 
     async def send_openai_completion(
         self,
