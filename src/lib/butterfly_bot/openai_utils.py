@@ -100,36 +100,31 @@ async def complete_with_openai(
     frequency_penalty=0.2,
     presence_penalty=0.6,
 ):
-    try:
-        logger.info(f"sending the following prompt: {prompt}")
+    logger.info(f"sending the following prompt: {prompt}")
 
-        if stops is None or len(stops) == 0:
-            stops = ["\n\n"]
+    if stops is None or len(stops) == 0:
+        stops = ["\n\n"]
 
-        response = openai.Completion.create(
-            engine="davinci-instruct-beta",
-            prompt=prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            stop=stops,
-        )
+    response = openai.Completion.create(
+        engine="davinci-instruct-beta",
+        prompt=prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty,
+        stop=stops,
+    )
 
-        logger.info(f"got the following response: {response}")
+    logger.info(f"got the following response: {response}")
 
-        if response["choices"][0]["text"]:
-            answer = response["choices"][0]["text"]
-            if strip:
-                return f"{answer.strip()}"
-            else:
-                return f"{answer}"
+    if response["choices"][0]["text"]:
+        answer = response["choices"][0]["text"]
+        if strip:
+            return f"{answer.strip()}"
         else:
-            raise NoOpenAIResponse(
-                "openai response didn't include answer:\n\n{response}"
-            )
-    except Exception as e:
-        error = f"<error> something went wrong: {e}"
-        logger.error(error)
-        return error
+            return f"{answer}"
+    else:
+        exc = NoOpenAIResponse(f"openai response didn't include answer:\n\n{response}")
+        logger.exception(exc)
+        raise exc
