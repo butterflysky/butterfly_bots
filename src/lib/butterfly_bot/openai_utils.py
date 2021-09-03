@@ -1,11 +1,9 @@
-import hashlib
 import logging
 import os
+from collections import deque
 from enum import Enum
 
 import openai
-
-from collections import deque
 
 logger = logging.getLogger(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
