@@ -56,30 +56,6 @@ class OpenAIBot(commands.Cog):
         logger.info(f"Logged on as {self.bot.user.name}, {self.bot.user.id}")
 
     @cog_slash(
-        name="echo",
-        guild_ids=GUILD_IDS,
-        description="Simple echo command",
-        options=[
-            create_option(
-                name="message",
-                description="the message to echo",
-                option_type=SlashCommandOptionType.STRING,
-                required=True,
-            ),
-            create_option(
-                name="reverse",
-                description="say it back backwards",
-                option_type=SlashCommandOptionType.BOOLEAN,
-                required=False,
-            ),
-        ],
-    )
-    async def echo_slash(self, ctx: SlashContext, message: str, reverse: bool = False):
-        if reverse:
-            message = message[::-1]
-        await ctx.send(content=f"{message}", hidden=True)
-
-    @cog_slash(
         name="flush_chat_history",
         guild_ids=GUILD_IDS,
         description="Clear the bot's conversation history",
