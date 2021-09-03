@@ -4,6 +4,7 @@ import os
 
 import discord
 from discord.ext import commands
+from discord_slash import SlashCommand
 from dotenv import load_dotenv
 from version import get_bot_version
 
@@ -26,6 +27,7 @@ adonis_blue = commands.Bot(
     intents=intents,
     strip_after_prefix=True,
 )
+slash = SlashCommand(adonis_blue, sync_commands=True, sync_on_cog_reload=True)
 
 
 @adonis_blue.command()

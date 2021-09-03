@@ -2,8 +2,13 @@
 import asyncio
 import datetime
 import logging
+import os
 
 from discord.ext import commands
+from discord_slash import SlashContext
+from discord_slash.cog_ext import cog_slash
+from discord_slash.model import SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_option
 
 from .discord_utils import MemberNameConverter
 
@@ -19,8 +24,9 @@ from .utils import (
     paginate,
 )
 
-
 logger = logging.getLogger(__name__)
+
+GUILD_IDS = [int(guild_id) for guild_id in os.getenv("GUILD_IDS").split(",")]
 
 
 class OpenAIBot(commands.Cog):
@@ -49,11 +55,38 @@ class OpenAIBot(commands.Cog):
     async def on_ready(self):
         logger.info(f"Logged on as {self.bot.user.name}, {self.bot.user.id}")
 
-    @commands.command(description="Echoes the message back for testing purposes")
-    async def echo(self, ctx, *words):
-        """Echoes the message back to the channel"""
-        message = await self.preprocess_message(ctx, words)
-        await send_responses(ctx, message, code_block=False)
+    @cog_slash(
+        name="echo",
+        guild_ids=GUILD_IDS,
+        description="Simple echo command",
+        options=[
+            create_option(
+                name="message",
+                description="the message to echo",
+                option_type=SlashCommandOptionType.STRING,
+                required=True,
+            ),
+            create_option(
+                name="reverse",
+                description="say it back backwards",
+                option_type=SlashCommandOptionType.BOOLEAN,
+                required=False,
+            ),
+        ],
+    )
+    async def echo_slash(self, ctx: SlashContext, message: str, reverse: bool = False):
+        if reverse:
+            message = message[::-1]
+        await ctx.send(content=f"{message}", hidden=True)
+
+    @cog_slash(
+        name="flush_chat_history",
+        guild_ids=GUILD_IDS,
+        description="Clear the bot's conversation history",
+    )
+    async def flush_chat_history_slash(self, ctx: SlashContext):
+        self.exchange_manager.clear(ctx)
+        await ctx.send("I have forgotten everything we discussed.")
 
     @commands.command()
     async def raw_openai(self, ctx, prompt, *stops: str):
@@ -63,7 +96,29 @@ class OpenAIBot(commands.Cog):
     @commands.command()
     async def flush_chat_history(self, ctx):
         self.exchange_manager.clear(ctx)
+        await ctx.send("_deprecated: use /flush_chat_history instead going forward")
         await ctx.send("I have forgotten everything we discussed.")
+
+    @cog_slash(
+        name="show_chat_history",
+        guild_ids=GUILD_IDS,
+        description="shows the bot's memory of recent chats",
+        options=[
+            create_option(
+                name="broadcast",
+                description="controls whether the history is shown to the entire channel, defaults to false",
+                required=False,
+                option_type=SlashCommandOptionType.BOOLEAN,
+            )
+        ],
+    )
+    async def show_chat_history_slash(self, ctx: SlashContext, broadcast=False):
+        exchanges = self.exchange_manager.get(ctx)
+
+        if len(exchanges) == 0:
+            exchanges = "we haven't chatted lately"
+
+        await ctx.send(f"```{exchanges}```", hidden=(not broadcast))
 
     @commands.command()
     async def show_chat_history(self, ctx):

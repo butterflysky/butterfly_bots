@@ -1,11 +1,9 @@
-import hashlib
 import logging
 import os
+from collections import deque
 from enum import Enum
 
 import openai
-
-from collections import deque
 
 logger = logging.getLogger(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -70,7 +68,10 @@ class ExchangeManager:
         self._exchanges = {}
 
     def get_channel_exchanges(self, ctx):
-        return self._exchanges.setdefault(ctx.message.channel.id, {})
+        if ctx.message:
+            return self._exchanges.setdefault(ctx.message.channel.id, {})
+        if ctx.channel:
+            return self._exchanges.setdefault(ctx.channel.id, {})
 
     def get(self, ctx):
         return str(
