@@ -7,6 +7,8 @@ import os
 from discord.ext import commands
 from discord_slash import SlashContext
 from discord_slash.cog_ext import cog_slash
+from discord_slash.model import SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_option
 
 from .discord_utils import MemberNameConverter
 
@@ -21,7 +23,6 @@ from .utils import (
     send_responses,
     paginate,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,30 @@ class OpenAIBot(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         logger.info(f"Logged on as {self.bot.user.name}, {self.bot.user.id}")
+
+    @cog_slash(
+        name="echo",
+        guild_ids=GUILD_IDS,
+        description="Simple echo command",
+        options=[
+            create_option(
+                name="message",
+                description="the message to echo",
+                option_type=SlashCommandOptionType.STRING,
+                required=True,
+            ),
+            create_option(
+                name="reverse",
+                description="say it back backwards",
+                option_type=SlashCommandOptionType.BOOLEAN,
+                required=False,
+            ),
+        ],
+    )
+    async def echo_slash(self, ctx, message: str, reverse: bool = False):
+        if reverse:
+            message = message[::-1]
+        await ctx.send(content=f"{message}")
 
     @commands.command(description="Echoes the message back for testing purposes")
     async def echo(self, ctx, *words):
