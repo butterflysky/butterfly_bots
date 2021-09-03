@@ -198,7 +198,21 @@ class UtilityBot(commands.Cog):
         self.bot = bot
         self._start_time = datetime.datetime.now()
 
-    @commands.command()
-    async def uptime(self, ctx):
+    @cog_slash(
+        name="uptime",
+        guild_ids=GUILD_IDS,
+        description="shows how long the bot has been running since its last restart",
+        options=[
+            create_option(
+                name="show_channel",
+                description="should the response be shown to the channel, defaults to false",
+                required=False,
+                option_type=SlashCommandOptionType.BOOLEAN,
+            )
+        ],
+    )
+    async def uptime(self, ctx: SlashContext, show_channel: bool = False):
         uptime = datetime.datetime.now() - self._start_time
-        await ctx.send(f"{pretty_time_delta(uptime.total_seconds())}")
+        await ctx.send(
+            f"{pretty_time_delta(uptime.total_seconds())}", hidden=(not show_channel)
+        )
