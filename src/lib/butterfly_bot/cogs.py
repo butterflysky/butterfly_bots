@@ -115,8 +115,8 @@ class OpenAIBot(commands.Cog):
         # sort and concatenate each of the mentioned usernames then hash the resulting string
         # as a key for the exchange cache
         stops = [
-            f"\n{ctx.author.display_name}:",
-            f"\n{self.bot.user.display_name}:",
+            f" {ctx.author.display_name}:",
+            f" {self.bot.user.display_name}:",
             "\n",
         ]
         message = await self.preprocess_message(ctx, words)
