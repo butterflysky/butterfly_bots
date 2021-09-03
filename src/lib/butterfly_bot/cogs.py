@@ -35,10 +35,6 @@ class OpenAIBot(commands.Cog):
         self.exchange_manager = ExchangeManager(max_size=5)
         self.member_name_converter = MemberNameConverter()
 
-    @cog_slash(name="ping", guild_ids=GUILD_IDS)
-    async def ping(self, ctx: SlashContext):
-        await ctx.send(content="pong")
-
     async def send_openai_completion(
         self,
         ctx,
@@ -78,16 +74,19 @@ class OpenAIBot(commands.Cog):
             ),
         ],
     )
-    async def echo_slash(self, ctx, message: str, reverse: bool = False):
+    async def echo_slash(self, ctx: SlashContext, message: str, reverse: bool = False):
         if reverse:
             message = message[::-1]
-        await ctx.send(content=f"{message}")
+        await ctx.send(content=f"{message}", hidden=True)
 
-    @commands.command(description="Echoes the message back for testing purposes")
-    async def echo(self, ctx, *words):
-        """Echoes the message back to the channel"""
-        message = await self.preprocess_message(ctx, words)
-        await send_responses(ctx, message, code_block=False)
+    @cog_slash(
+        name="flush_chat_history",
+        guild_ids=GUILD_IDS,
+        description="Clear the bot's conversation history",
+    )
+    async def flush_chat_history_slash(self, ctx: SlashContext):
+        self.exchange_manager.clear(ctx)
+        await ctx.send("I have forgotten everything we discussed.")
 
     @commands.command()
     async def raw_openai(self, ctx, prompt, *stops: str):
@@ -97,7 +96,29 @@ class OpenAIBot(commands.Cog):
     @commands.command()
     async def flush_chat_history(self, ctx):
         self.exchange_manager.clear(ctx)
+        await ctx.send("_deprecated: use /flush_chat_history instead going forward")
         await ctx.send("I have forgotten everything we discussed.")
+
+    @cog_slash(
+        name="show_chat_history",
+        guild_ids=GUILD_IDS,
+        description="shows the bot's memory of recent chats",
+        options=[
+            create_option(
+                name="broadcast",
+                description="controls whether the history is shown to the entire channel, defaults to false",
+                required=False,
+                option_type=SlashCommandOptionType.BOOLEAN,
+            )
+        ],
+    )
+    async def show_chat_history_slash(self, ctx: SlashContext, broadcast=False):
+        exchanges = self.exchange_manager.get(ctx)
+
+        if len(exchanges) == 0:
+            exchanges = "we haven't chatted lately"
+
+        await ctx.send(f"```{exchanges}```", hidden=(not broadcast))
 
     @commands.command()
     async def show_chat_history(self, ctx):
