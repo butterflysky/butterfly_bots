@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import asyncio
 import datetime
 import logging
 import os
@@ -11,12 +10,10 @@ from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
 
 from .discord_utils import MemberNameConverter
-
 from .openai_utils import (
     ExchangeManager,
     complete_with_openai,
 )
-
 from .utils import (
     ResponseTarget,
     pretty_time_delta,
