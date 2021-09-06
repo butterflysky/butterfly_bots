@@ -2,17 +2,27 @@
 import datetime
 import logging
 import os
+from typing import Optional, Sequence
 
 from discord.ext import commands
 from discord_slash import SlashContext
-from discord_slash.cog_ext import cog_slash
-from discord_slash.model import SlashCommandOptionType
+from discord_slash.cog_ext import (
+    cog_context_menu,
+    cog_slash,
+)
+from discord_slash.context import MenuContext
+from discord_slash.model import (
+    ContextMenuType,
+    SlashMessage,
+    SlashCommandOptionType,
+)
 from discord_slash.utils.manage_commands import create_option
 
 from .discord_utils import MemberNameConverter
 from .openai_utils import (
     ExchangeManager,
     complete_with_openai,
+    get_prompt,
 )
 from .utils import (
     ResponseTarget,
@@ -61,6 +71,35 @@ class OpenAIBot(commands.Cog):
         self.exchange_manager.clear(ctx)
         await ctx.send("I have forgotten everything we discussed.")
 
+    @cog_context_menu(
+        target=ContextMenuType.MESSAGE, guild_ids=GUILD_IDS, name="reroll story"
+    )
+    async def reroll_story(self, ctx: MenuContext):
+        if ctx.target_author.id != self.bot.user.id:
+            await ctx.send(
+                content=f"Unable to comply - this message doesn't look like something I wrote.",
+                hidden=True,
+            )
+            return
+
+        ptr: Optional[SlashMessage] = ctx.target_message.reference
+        ancestor: Optional[SlashMessage] = None
+
+        while ptr is not None:
+            if ptr.author.id != self.bot.user.id:
+                ancestor = ptr
+                break
+            ptr = ptr.reference
+
+        if ancestor is None:
+            await ctx.send(
+                content=f"Unable to comply - I could not find the originating prompt.",
+                hidden=True,
+            )
+            return
+
+        await self._story_stub(ctx, ancestor.content.split(" "))
+
     @commands.command()
     async def raw_openai(self, ctx, prompt, *stops: str):
         """Sends a raw openai completion request given a prompt and a list of stops"""
@@ -104,13 +143,12 @@ class OpenAIBot(commands.Cog):
 
     @commands.command()
     async def story(self, ctx, *words: str):
+        await self._story_stub(ctx, words)
+
+    async def _story_stub(self, ctx, words: Sequence[str]):
         """Returns a short story based on your prompt"""
         message = await self.preprocess_message(ctx, words)
-        prompt = (
-            "You're a bestselling author. Write a short story about the following prompt:\n\n"
-            f"Prompt: {message}\n"
-            "Your story:"
-        )
+        prompt = get_prompt("story").format(message=message)
         await self.send_openai_completion(ctx, prompt, ["Your story:"])
 
     @commands.command()

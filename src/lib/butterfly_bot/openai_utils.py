@@ -129,3 +129,16 @@ async def complete_with_openai(
         exc = NoOpenAIResponse(f"openai response didn't include answer:\n\n{response}")
         logger.exception(exc)
         raise exc
+
+
+_prompts = {
+    "story": (
+        "You're a bestselling author. Write a short story about the following prompt:\n\n"
+        "Prompt: {message}\n"
+        "Your story:"
+    ),
+}
+
+
+def get_prompt(key: str):
+    return _prompts.get(key)
