@@ -2,8 +2,9 @@
 import datetime
 import logging
 import os
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
+from discord import DeletedReferencedMessage, Message, MessageReference, abc
 from discord.ext import commands
 from discord_slash import SlashContext
 from discord_slash.cog_ext import (
@@ -47,14 +48,16 @@ class OpenAIBot(commands.Cog):
         ctx: commands.Context,
         prompt,
         stops,
+        respond_to=None,
         response_target=ResponseTarget.LAST_MESSAGE,
     ):
-        async with ctx.typing():
+        async with ctx.channel.typing():
             response = await complete_with_openai(prompt, stops)
 
             await send_responses(
                 ctx,
                 await paginate(response),
+                respond_to=respond_to,
                 response_target=response_target,
             )
 
@@ -75,21 +78,35 @@ class OpenAIBot(commands.Cog):
         target=ContextMenuType.MESSAGE, guild_ids=GUILD_IDS, name="reroll story"
     )
     async def reroll_story(self, ctx: MenuContext):
-        if ctx.target_author.id != self.bot.user.id:
+        if ctx.target_message.author.id != self.bot.user.id:
             await ctx.send(
                 content=f"Unable to comply - this message doesn't look like something I wrote.",
                 hidden=True,
             )
             return
 
-        ptr: Optional[SlashMessage] = ctx.target_message.reference
-        ancestor: Optional[SlashMessage] = None
+        ptr: Optional[Union[Message, DeletedReferencedMessage]] = ctx.target_message
+        ancestor: Optional[Union[Message, DeletedReferencedMessage]] = None
 
-        while ptr is not None:
+        while ptr.reference is not None:
+            logger.info(f"found a reference: {ptr.reference.message_id}")
+            ptr = await ctx.channel.fetch_message(ptr.reference.message_id)
+            if ptr is None:
+                logger.info("it does not resolve to a message")
+                break
+
+            logger.info(f"it resolves to a message: {ptr.id}")
+
+            if isinstance(ptr, DeletedReferencedMessage):
+                logger.info("but the message was deleted")
+                break
+
             if ptr.author.id != self.bot.user.id:
                 ancestor = ptr
+                logger.info("found ancestor")
                 break
-            ptr = ptr.reference
+
+            logger.info("haven't found ancestor yet")
 
         if ancestor is None:
             await ctx.send(
@@ -98,7 +115,10 @@ class OpenAIBot(commands.Cog):
             )
             return
 
-        await self._story_stub(ctx, ancestor.content.split(" "))
+        await ctx.send(
+            f"Getting a new story for the following prompt: {ancestor.content}"
+        )
+        await self._story_stub(ctx, ancestor.content.split(" "), respond_to=ancestor)
 
     @commands.command()
     async def raw_openai(self, ctx, prompt, *stops: str):
@@ -145,11 +165,13 @@ class OpenAIBot(commands.Cog):
     async def story(self, ctx, *words: str):
         await self._story_stub(ctx, words)
 
-    async def _story_stub(self, ctx, words: Sequence[str]):
+    async def _story_stub(self, ctx, words: Sequence[str], respond_to=None):
         """Returns a short story based on your prompt"""
         message = await self.preprocess_message(ctx, words)
         prompt = get_prompt("story").format(message=message)
-        await self.send_openai_completion(ctx, prompt, ["Your story:"])
+        await self.send_openai_completion(
+            ctx, prompt, ["Your story:"], respond_to=respond_to
+        )
 
     @commands.command()
     async def tarot(self, ctx, *words: str):

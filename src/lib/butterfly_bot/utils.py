@@ -7,15 +7,20 @@ class ResponseTarget(Enum):
 
 
 async def send_responses(
-    ctx, parts, code_block=True, response_target=ResponseTarget.LAST_MESSAGE
+    ctx,
+    parts,
+    code_block=True,
+    respond_to=None,
+    response_target=ResponseTarget.LAST_MESSAGE,
 ):
-    respond_to = ctx.message
+    if respond_to is None:
+        respond_to = ctx.message
     if isinstance(parts, str):
         parts = [parts]
     for part in parts:
         if code_block:
             part = f"```{part}```"
-        last_message = await ctx.send(
+        last_message = await ctx.channel.send(
             content=part, reference=respond_to, mention_author=True
         )
         if response_target is ResponseTarget.LAST_MESSAGE:
