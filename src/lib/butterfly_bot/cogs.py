@@ -27,14 +27,14 @@ GUILD_IDS = [int(guild_id) for guild_id in os.getenv("GUILD_IDS").split(",")]
 
 
 class OpenAIBot(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.exchange_manager = ExchangeManager(max_size=5)
         self.member_name_converter = MemberNameConverter()
 
     async def send_openai_completion(
         self,
-        ctx,
+        ctx: commands.Context,
         prompt,
         stops,
         response_target=ResponseTarget.LAST_MESSAGE,
