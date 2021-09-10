@@ -2,6 +2,7 @@ import logging
 import os
 from collections import deque
 from enum import Enum
+from typing import Sequence
 
 import openai
 
@@ -93,8 +94,8 @@ class ExchangeManager:
 
 async def complete_with_openai(
     prompt: str,
-    stops: list[str],
-    strip=True,
+    stops: Sequence[str],
+    strip_response=True,
     temperature=0.9,
     max_tokens=1500,
     top_p=1,
@@ -121,7 +122,7 @@ async def complete_with_openai(
 
     if response["choices"][0]["text"]:
         answer = response["choices"][0]["text"]
-        if strip:
+        if strip_response:
             return f"{answer.strip()}"
         else:
             return f"{answer}"
@@ -129,16 +130,3 @@ async def complete_with_openai(
         exc = NoOpenAIResponse(f"openai response didn't include answer:\n\n{response}")
         logger.exception(exc)
         raise exc
-
-
-_prompts = {
-    "story": (
-        "You're a bestselling author. Write a short story about the following prompt:\n\n"
-        "Prompt: {message}\n"
-        "Your story:"
-    ),
-}
-
-
-def get_prompt(key: str):
-    return _prompts.get(key)

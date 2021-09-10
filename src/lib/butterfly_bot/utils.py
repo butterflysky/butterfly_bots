@@ -1,34 +1,44 @@
-from enum import Enum
+from typing import Sequence
+
+from discord_slash.context import InteractionContext
+
+from .options import ResponseOptions, PaginateOptions
+from .response import ResponseTarget
 
 
-class ResponseTarget(Enum):
-    ORIGINAL_MESSAGE = 1
-    LAST_MESSAGE = 2
+async def send_response(
+    options: ResponseOptions,
+    response: str,
+) -> None:
+    await send_responses(options, [response])
 
 
 async def send_responses(
-    ctx,
-    parts,
-    code_block=True,
-    respond_to=None,
-    response_target=ResponseTarget.LAST_MESSAGE,
-):
-    if respond_to is None:
-        respond_to = ctx.message
-    if isinstance(parts, str):
-        parts = [parts]
-    for part in parts:
-        if code_block:
+    options: ResponseOptions,
+    responses: Sequence[str],
+) -> None:
+    if options.paginate:
+        new_responses = []
+        for response in responses:
+            new_responses.extend(await paginate(options, response))
+        responses = new_responses
+    if options.respond_to is None:
+        if options.ctx.message is not None:
+            options.respond_to = options.ctx.message
+    for part in responses:
+        if options.code_block:
             part = f"```{part}```"
-        last_message = await ctx.channel.send(
-            content=part, reference=respond_to, mention_author=True
-        )
-        if response_target is ResponseTarget.LAST_MESSAGE:
-            respond_to = last_message
+        if isinstance(options.ctx, InteractionContext):
+            last_message = await options.ctx.send(content=part)
+        else:
+            last_message = await options.ctx.channel.send(
+                content=part, reference=options.respond_to, mention_author=True
+            )
+        if options.response_target is ResponseTarget.LAST_MESSAGE:
+            options.respond_to = last_message
 
 
-def pretty_time_delta(seconds):
-    seconds = int(seconds)
+def pretty_time_delta(seconds: int):
     days, seconds = divmod(seconds, 86400)
     hours, seconds = divmod(seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
@@ -42,13 +52,13 @@ def pretty_time_delta(seconds):
         return "%ds" % (seconds,)
 
 
-async def paginate(response, split_length=1994):
+async def paginate(options: PaginateOptions, response: str):
     parts = []
-    while len(response) > split_length:
-        split_point = response[:split_length].rfind(" ")
+    while len(response) > options.split_length:
+        split_point = response[: options.split_length].rfind(" ")
 
         if split_point == -1:
-            split_point = split_length
+            split_point = options.split_length
 
         parts.append(response[:split_point])
         response = response[split_point + 1 :]  # noqa: E203
