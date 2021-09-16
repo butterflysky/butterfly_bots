@@ -2,7 +2,7 @@
 import datetime
 import logging
 import os
-from typing import Optional, Union, Tuple
+from typing import Optional, Union
 
 from discord import DeletedReferencedMessage, Message
 from discord.ext import commands
@@ -162,7 +162,7 @@ class OpenAIBot(commands.Cog):
         await send_responses(ResponseOptions(ctx=ctx), exchanges)
 
     @commands.command()
-    async def story(self, ctx, words: Tuple[str]):
+    async def story(self, ctx, *words: str):
         options = StoryOptions(ctx=ctx, prompt=" ".join(words))
         await self._story_stub(options)
 
