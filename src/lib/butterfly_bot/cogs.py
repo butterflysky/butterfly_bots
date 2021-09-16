@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Optional, Union
 
-from discord import DeletedReferencedMessage, Message
+from discord import DeletedReferencedMessage, Message, MessageReference
 from discord.ext import commands
 from discord_slash import SlashContext
 from discord_slash.cog_ext import (
@@ -75,6 +75,9 @@ class OpenAIBot(commands.Cog):
         target=ContextMenuType.MESSAGE, guild_ids=GUILD_IDS, name="reroll story"
     )
     async def reroll_story(self, ctx: MenuContext):
+        await ctx.send(content="this command is currently broken", hidden=True)
+        return
+
         if ctx.target_message.author.id != self.bot.user.id:
             await ctx.send(
                 content=f"Unable to comply - this message doesn't look like something I wrote, or I can't find the "
@@ -86,13 +89,15 @@ class OpenAIBot(commands.Cog):
         ptr: Optional[Union[Message, DeletedReferencedMessage]] = ctx.target_message
         ancestor: Optional[Union[Message, DeletedReferencedMessage]] = None
 
-        while ptr.reference is not None:
-            logger.info(f"found a reference: {ptr.reference.message_id}")
-            ptr = await ctx.channel.fetch_message(ptr.reference.message_id)
+        reference: Optional[MessageReference] = ptr.reference
+
+        while reference is not None:
+            logger.info(f"found a reference: {reference.message_id}")
+            ptr = await ctx.channel.fetch_message(reference.message_id)
             if ptr is None:
                 logger.info("it does not resolve to a message")
                 break
-
+            logger.info(f"message: {ptr}")
             logger.info(f"it resolves to a message: {ptr.id}")
 
             if isinstance(ptr, DeletedReferencedMessage):
@@ -103,8 +108,8 @@ class OpenAIBot(commands.Cog):
                 ancestor = ptr
                 logger.info("found ancestor")
                 break
-
-            logger.info("haven't found ancestor yet")
+            reference = ptr.reference
+            logger.info(f"haven't found ancestor yet.\n{reference}")
 
         if ancestor is None:
             await ctx.send(
@@ -113,10 +118,11 @@ class OpenAIBot(commands.Cog):
             )
             return
 
-        await ctx.send(
-            f"Getting a new story for the following prompt: {ancestor.content}"
-        )
-        options = StoryOptions(ctx=ctx, prompt=ancestor.content, respond_to=ancestor)
+        prompt: str = ancestor.content
+        if prompt.startswith("!story"):
+            prompt = prompt[7:]
+        await ctx.send(f"Getting a new story for the following prompt: {prompt}")
+        options = StoryOptions(ctx=ctx, prompt=prompt, respond_to=ancestor)
         await self._story_stub(options)
 
     @commands.command()
