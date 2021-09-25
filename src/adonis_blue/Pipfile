@@ -14,6 +14,17 @@ bump2version = "*"
 discord-py-interactions = "*"
 
 [dev-packages]
+black = "21.9b0"
+coverage = "*"
+factory-boy = "*"
+flake8 = "*"
+ipython = "*"
+isort = "*"
+pipdeptree = "*"
+tox = "*"
 
 [requires]
 python_version = "3.9"
+
+[pipenv]
+allow_prereleases = true
