@@ -23,7 +23,9 @@ class OptionsConsumer:
     class OptionError(AttributeError):
         pass
 
-    def __init__(self, opt: Options = Options(), **kwargs):
+    def __init__(self, opt: Optional[Options] = None, **kwargs):
+        if opt is None:
+            opt = Options()
         self.init_options(opt, kwargs)
 
     def init_options(self, options: Options, kwargs: Dict):
@@ -74,7 +76,10 @@ class StoryOptions(CompletionOptions, ResponseOptions):
     prompt_prelude: str = get_default_story_prompt_prelude()
     stops: Sequence[str] = ["\n\n"]
 
-    def __init__(self, opt: Options = Options(), **kwargs):
+    def __init__(self, opt: Optional[Options] = None, **kwargs):
+        if opt is None:
+            opt = Options()
+
         def process_str_arg(key: str, transform=(lambda x: x)):
             arg = kwargs.get(key)
             if arg is not None and len(arg) > 0:
