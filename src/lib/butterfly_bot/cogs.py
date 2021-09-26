@@ -26,7 +26,7 @@ from .openai_utils import (
     ExchangeManager,
     complete_with_openai,
 )
-from .options import StoryOptions, ResponseOptions
+from .options import StoryOptions, DiscordCompletionOptions
 from .utils import (
     pretty_time_delta,
     send_responses,
@@ -41,8 +41,9 @@ DiscordContext = Union[commands.Context, SlashContext, MenuContext, InteractionC
 
 
 async def send_openai_completion(
-    options: StoryOptions,
+    options: DiscordCompletionOptions,
 ):
+    logger.info(f"send_openai_completion called with options: {options}")
     async with options.ctx.channel.typing():
         response = await complete_with_openai(options.prompt, options.stops)
 
@@ -165,7 +166,7 @@ class OpenAIBot(commands.Cog):
         if len(exchanges) == 0:
             exchanges = "we haven't chatted lately"
 
-        await send_responses(ResponseOptions(ctx=ctx), exchanges)
+        await send_responses(DiscordCompletionOptions(ctx=ctx), exchanges)
 
     @commands.command()
     async def story(self, ctx, *words: str):

@@ -2,19 +2,19 @@ from typing import Sequence
 
 from discord_slash.context import InteractionContext
 
-from .options import ResponseOptions, PaginateOptions
+from .options import DiscordResponseOptions, PaginateOptions
 from .response import ResponseTarget
 
 
 async def send_response(
-    options: ResponseOptions,
+    options: DiscordResponseOptions,
     response: str,
 ) -> None:
     await send_responses(options, [response])
 
 
 async def send_responses(
-    options: ResponseOptions,
+    options: DiscordResponseOptions,
     responses: Sequence[str],
 ) -> None:
     if options.paginate:
