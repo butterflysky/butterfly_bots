@@ -88,7 +88,7 @@ class ExchangeManager:
 
     def clear(self, ctx):
         key = _hash_ctx(ctx)
-        if key in self.get_channel_exchanges(ctx).keys():
+        if key in self.get_channel_exchanges(ctx):
             del self.get_channel_exchanges(ctx)[key]
 
 

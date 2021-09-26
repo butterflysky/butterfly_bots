@@ -81,8 +81,8 @@ class OpenAIBot(commands.Cog):
 
         if ctx.target_message.author.id != self.bot.user.id:
             await ctx.send(
-                content=f"Unable to comply - this message doesn't look like something I wrote, or I can't find the "
-                f"originating message.",
+                content="Unable to comply - this message doesn't look like something I wrote, or I can't find the "
+                "originating message.",
                 hidden=True,
             )
             return
@@ -114,7 +114,7 @@ class OpenAIBot(commands.Cog):
 
         if ancestor is None:
             await ctx.send(
-                content=f"Unable to comply - I could not find the originating prompt.",
+                content="Unable to comply - I could not find the originating prompt.",
                 hidden=True,
             )
             return
@@ -329,7 +329,10 @@ class OpenAIBot(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx: commands.Context, exc: Exception):
-        if exc.__class__ == commands.errors.CommandNotFound:
+        if exc.__class__ != commands.errors.CommandNotFound:
+            await ctx.send(f"an exception occurred: {exc}")
+            raise exc
+        else:
             invoker = "chat"
             ctx.message.content = f"{ctx.invoked_with} {ctx.message.content}"
             ctx.view.index = ctx.view.previous
@@ -337,9 +340,6 @@ class OpenAIBot(commands.Cog):
             ctx.invoked_with = invoker
             ctx.command = self.bot.all_commands.get(invoker)
             await self.bot.invoke(ctx)
-        else:
-            await ctx.send(f"an exception occurred: {exc}")
-            raise exc
 
 
 class UtilityBot(commands.Cog):

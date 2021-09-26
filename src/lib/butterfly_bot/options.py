@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 from typing import Dict, Union, Sequence, Optional, Any, Callable
@@ -30,17 +31,15 @@ class OptionsConsumer:
         pass
 
     def __init__(self, options: Optional[Options] = None, **kwargs):
-        if "_transformers" in kwargs.keys():
+        if "_transformers" in kwargs:
             logger.warning(
                 "_transformers is a reserved field in Options - ignoring value passed in constructor"
             )
             del kwargs["_transformers"]
 
         for k, v in self._transformers.items():
-            try:
+            with contextlib.suppress(KeyError):
                 kwargs[k] = v(kwargs[k])
-            except KeyError:
-                pass
 
         if options is None:
             options = Options()

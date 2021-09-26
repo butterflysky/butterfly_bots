@@ -22,9 +22,8 @@ async def send_responses(
         for response in responses:
             new_responses.extend(await paginate(options, response))
         responses = new_responses
-    if options.respond_to is None:
-        if options.ctx.message is not None:
-            options.respond_to = options.ctx.message
+    if options.respond_to is None and options.ctx.message is not None:
+        options.respond_to = options.ctx.message
     for part in responses:
         if options.code_block:
             part = f"```{part}```"
