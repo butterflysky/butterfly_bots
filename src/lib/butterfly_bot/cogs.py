@@ -7,31 +7,15 @@ from typing import Optional, Union
 from discord import DeletedReferencedMessage, Message, MessageReference
 from discord.ext import commands
 from discord_slash import SlashContext
-from discord_slash.cog_ext import (
-    cog_context_menu,
-    cog_slash,
-)
-from discord_slash.context import MenuContext, InteractionContext
-from discord_slash.model import (
-    ContextMenuType,
-    SlashCommandOptionType,
-)
-from discord_slash.utils.manage_commands import (
-    create_choice,
-    create_option,
-)
+from discord_slash.cog_ext import cog_context_menu, cog_slash
+from discord_slash.context import InteractionContext, MenuContext
+from discord_slash.model import ContextMenuType, SlashCommandOptionType
+from discord_slash.utils.manage_commands import create_choice, create_option
 
 from .discord_utils import MemberNameConverter
-from .openai_utils import (
-    ExchangeManager,
-    complete_with_openai,
-)
-from .options import StoryOptions, DiscordCompletionOptions
-from .utils import (
-    pretty_time_delta,
-    send_responses,
-    send_response,
-)
+from .openai_utils import ExchangeManager, complete_with_openai
+from .options import DiscordCompletionOptions, StoryOptions
+from .utils import pretty_time_delta, send_response, send_responses
 
 logger = logging.getLogger(__name__)
 

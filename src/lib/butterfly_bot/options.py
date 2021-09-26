@@ -1,11 +1,11 @@
 import contextlib
 import json
 import logging
-from typing import Dict, Union, Sequence, Optional, Any, Callable
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 from discord import Message
 from discord.ext import commands
-from discord_slash import SlashContext, MenuContext
+from discord_slash import MenuContext, SlashContext
 from discord_slash.context import InteractionContext
 
 from .response import ResponseTarget

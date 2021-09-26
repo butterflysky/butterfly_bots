@@ -1,13 +1,10 @@
 import json
 import os
 import unittest
-from unittest.mock import (
-    patch,
-    AsyncMock,
-)
+from unittest.mock import AsyncMock, patch
 
-from discord.ext import commands
 import openai
+from discord.ext import commands
 
 
 async def build_context(channel_id="arbitrary", author="test_runner"):

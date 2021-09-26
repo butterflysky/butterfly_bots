@@ -2,13 +2,12 @@
 import logging
 import os
 
+import butterfly_bot.cogs
 import discord
 from discord.ext import commands
 from discord_slash import SlashCommand
 from dotenv import load_dotenv
 from version import get_bot_version
-
-import butterfly_bot.cogs
 
 load_dotenv()
 
