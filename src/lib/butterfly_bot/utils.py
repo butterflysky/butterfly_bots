@@ -1,5 +1,6 @@
-from typing import Sequence
+from typing import Optional, Sequence, Tuple
 
+from discord import Message
 from discord_slash.context import InteractionContext
 
 from .options import DiscordResponseOptions, PaginateOptions
@@ -17,24 +18,25 @@ async def send_responses(
     options: DiscordResponseOptions,
     responses: Sequence[str],
 ) -> None:
-    if options.paginate:
-        new_responses = []
-        for response in responses:
-            new_responses.extend(await paginate(options, response))
-        responses = new_responses
     if options.respond_to is None and options.ctx.message is not None:
         options.respond_to = options.ctx.message
-    for part in responses:
-        if options.code_block:
-            part = f"```{part}```"
-        if isinstance(options.ctx, InteractionContext):
-            last_message = await options.ctx.send(content=part)
-        else:
-            last_message = await options.ctx.channel.send(
-                content=part, reference=options.respond_to, mention_author=True
-            )
+    for part in await paginate(options, responses):
+        last_message = await send_message(options, part)
         if options.response_target is ResponseTarget.LAST_MESSAGE:
             options.respond_to = last_message
+
+
+async def send_message(
+    options: DiscordResponseOptions, content: str
+) -> Optional[Message]:
+    """sends a Discord message according to the underlying API's context semantics"""
+    if isinstance(options.ctx, InteractionContext):
+        last_message = await options.ctx.send(content=content)
+    else:
+        last_message = await options.ctx.channel.send(
+            content=content, reference=options.respond_to, mention_author=True
+        )
+    return last_message
 
 
 def pretty_time_delta(seconds: int):
@@ -51,15 +53,25 @@ def pretty_time_delta(seconds: int):
         return "%ds" % (seconds,)
 
 
-async def paginate(options: PaginateOptions, response: str):
+def split_string(string: str, length: int) -> Tuple[str, str]:
+    """splits a string on the word boundary right before the specified length"""
+    split_point = string[:length].rfind(" ")
+
+    if split_point == -1:
+        split_point = length
+
+    return string[:split_point], string[split_point + 1 :]  # noqa: E203
+
+
+async def paginate(options: PaginateOptions, responses: Sequence[str]):
+    if not options.paginate:
+        return responses
     parts = []
-    while len(response) > options.split_length:
-        split_point = response[: options.split_length].rfind(" ")
-
-        if split_point == -1:
-            split_point = options.split_length
-
-        parts.append(response[:split_point])
-        response = response[split_point + 1 :]  # noqa: E203
-    parts.append(response)
+    for response in responses:
+        while len(response) > options.split_length:
+            part, response = split_string(response, options.split_length)
+            if options.code_block:
+                part = f"```{part}```"
+            parts.append(part)
+        parts.append(response)
     return parts

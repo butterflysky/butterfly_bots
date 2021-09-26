@@ -62,6 +62,7 @@ class OptionsConsumer:
 
 class PaginateOptions(OptionsConsumer):
     code_block: bool = True
+    paginate: bool = False
     split_length: int = 1994
 
 
@@ -69,7 +70,6 @@ class DiscordResponseOptions(PaginateOptions):
     ctx: DiscordContext = None
     respond_to: Optional[Message] = None
     response_target: ResponseTarget = ResponseTarget.LAST_MESSAGE
-    paginate: bool = False
 
 
 class CompletionOptions(OptionsConsumer):
