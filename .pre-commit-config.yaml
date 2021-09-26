@@ -20,4 +20,18 @@ repos:
     rev: 3.9.2
     hooks:
     -   id: flake8
-        additional_dependencies: [flake8-bugbear, flake8-simplify]
+        additional_dependencies: 
+        - flake8-bugbear
+        - flake8-expression-complexity
+        - flake8-simplify
+-   repo: https://github.com/pycqa/isort
+    rev: 5.8.0
+    hooks:
+    -   id: isort
+        name: isort (python)
+    -   id: isort
+        name: isort (cython)
+        types: [cython]
+    -   id: isort
+        name: isort (pyi)
+        types: [pyi]
