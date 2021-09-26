@@ -2,14 +2,13 @@
 import datetime
 import logging
 import os
-from typing import Optional, Union
+from typing import Union
 
-from discord import DeletedReferencedMessage, Message, MessageReference
 from discord.ext import commands
 from discord_slash import SlashContext
-from discord_slash.cog_ext import cog_context_menu, cog_slash
+from discord_slash.cog_ext import cog_slash
 from discord_slash.context import InteractionContext, MenuContext
-from discord_slash.model import ContextMenuType, SlashCommandOptionType
+from discord_slash.model import SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_choice, create_option
 
 from .discord_utils import MemberNameConverter
@@ -55,60 +54,6 @@ class OpenAIBot(commands.Cog):
     async def flush_chat_history_slash(self, ctx: SlashContext):
         self.exchange_manager.clear(ctx)
         await ctx.send("I have forgotten everything we discussed.")
-
-    @cog_context_menu(
-        target=ContextMenuType.MESSAGE, guild_ids=GUILD_IDS, name="reroll story"
-    )
-    async def reroll_story(self, ctx: MenuContext):
-        await ctx.send(content="this command is currently broken", hidden=True)
-        return
-
-        if ctx.target_message.author.id != self.bot.user.id:
-            await ctx.send(
-                content="Unable to comply - this message doesn't look like something I wrote, or I can't find the "
-                "originating message.",
-                hidden=True,
-            )
-            return
-
-        ptr: Optional[Union[Message, DeletedReferencedMessage]] = ctx.target_message
-        ancestor: Optional[Union[Message, DeletedReferencedMessage]] = None
-
-        reference: Optional[MessageReference] = ptr.reference
-
-        while reference is not None:
-            logger.info(f"found a reference: {reference.message_id}")
-            ptr = await ctx.channel.fetch_message(reference.message_id)
-            if ptr is None:
-                logger.info("it does not resolve to a message")
-                break
-            logger.info(f"message: {ptr}")
-            logger.info(f"it resolves to a message: {ptr.id}")
-
-            if isinstance(ptr, DeletedReferencedMessage):
-                logger.info("but the message was deleted")
-                break
-
-            if ptr.author.id != self.bot.user.id:
-                ancestor = ptr
-                logger.info("found ancestor")
-                break
-            reference = ptr.reference
-            logger.info(f"haven't found ancestor yet.\n{reference}")
-
-        if ancestor is None:
-            await ctx.send(
-                content="Unable to comply - I could not find the originating prompt.",
-                hidden=True,
-            )
-            return
-
-        prompt: str = ancestor.content
-        if prompt.startswith("!story"):
-            prompt = prompt[7:]
-        await ctx.send(f"Getting a new story for the following prompt: {prompt}")
-        options = StoryOptions(ctx=ctx, prompt=prompt, respond_to=ancestor)
-        await self._story_stub(options)
 
     @commands.command()
     async def raw_openai(self, ctx: commands.Context, prompt, *stops: str):
