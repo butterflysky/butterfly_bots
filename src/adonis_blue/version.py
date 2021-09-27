@@ -1,2 +1,2 @@
 def get_bot_version():
-    return "0.3.3"
+    return "0.3.4"
