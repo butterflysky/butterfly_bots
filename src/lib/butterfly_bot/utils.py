@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple
+from typing import Iterable, Optional, Sequence, Tuple
 
 from discord import Message
 from discord_slash.context import InteractionContext
@@ -20,7 +20,7 @@ async def send_responses(
 ) -> None:
     if options.respond_to is None and options.ctx.message is not None:
         options.respond_to = options.ctx.message
-    for part in await paginate(options, responses):
+    async for part in paginate(options, responses):
         last_message = await send_message(options, part)
         if options.response_target is ResponseTarget.LAST_MESSAGE:
             options.respond_to = last_message
@@ -63,15 +63,17 @@ def split_string(string: str, length: int) -> Tuple[str, str]:
     return string[:split_point], string[split_point + 1 :]  # noqa: E203
 
 
+def get_splits(options: PaginateOptions, responses: Sequence[str]) -> Iterable[str]:
+    for string in responses:
+        while options.paginate and len(string) > options.split_length:
+            part, string = split_string(string, options.split_length)
+            yield part
+        yield string
+
+
 async def paginate(options: PaginateOptions, responses: Sequence[str]):
-    if not options.paginate:
-        return responses
-    parts = []
-    for response in responses:
-        while len(response) > options.split_length:
-            part, response = split_string(response, options.split_length)
-            if options.code_block:
-                part = f"```{part}```"
-            parts.append(part)
-        parts.append(response)
-    return parts
+    for split in get_splits(options, responses):
+        if options.code_block:
+            yield f"```{split}```"
+        else:
+            yield split
