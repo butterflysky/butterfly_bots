@@ -34,6 +34,17 @@ async def version(ctx):
     await ctx.send(get_bot_version())
 
 
+def load_environment_from_files(key: str):
+    env_file = os.getenv(f"{key}_FILE")
+
+    if env_file:
+        with open(env_file, "r") as f:
+            os.environ[key] = f.read()
+
+
+load_environment_from_files("DISCORD_API_KEY")
+load_environment_from_files("OPENAI_API_KEY")
+
 adonis_blue.add_cog(butterfly_bot.cogs.OpenAIBot(adonis_blue))
 adonis_blue.add_cog(butterfly_bot.cogs.UtilityBot(adonis_blue))
 adonis_blue.run(os.getenv("DISCORD_API_KEY"))
