@@ -5,7 +5,7 @@ services:
       context: .
       args:
         - BOT_NAME=adonis_blue
-    image: butterfly/adonis_blue:0.3.10
+    image: butterfly/adonis_blue:0.3.11
     env_file:
       - ./src/adonis_blue/.env
     container_name: adonis_blue
