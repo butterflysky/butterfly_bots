@@ -9,7 +9,7 @@ from discord.ext import commands
 from discord_slash import SlashCommand
 from version import get_bot_version
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("adonis_blue")
 
 load_environment()
