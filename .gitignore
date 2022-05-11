@@ -2,3 +2,6 @@
 .idea
 **/__pycache__
 **.egg-info
+blah
+blah2
+docker-compose.testing.yml
