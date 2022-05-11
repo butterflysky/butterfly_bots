@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 def load_environment():
     load_dotenv()
+    _ = os.environ.keys()
     env_files = [key for key in os.environ.keys() if key.endswith("_FILE")]
 
     with contextlib.suppress(Exception):
