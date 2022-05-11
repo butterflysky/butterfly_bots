@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def load_environment():
     load_dotenv()
-    env_files = [key for key in os.environ.keys() if key.endswith("_FILE")]
+    env_files = [os.getenv(key) for key in os.environ.keys() if key.endswith("_FILE")]
 
     for env_file in env_files:
         # strip _FILE to get key name
