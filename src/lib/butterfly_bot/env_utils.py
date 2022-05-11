@@ -18,7 +18,9 @@ def load_environment():
         logger.info(f"loading environment var {key} from {env_file}")
         try:
             with open(env_file, "r") as f:
-                os.environ[key] = f.read()
+                val = f.read()
+                logger.debug(f"value: {val}")
+                os.environ[key] = val
         except Exception as e:
             logger.exception(f"something went wrong: {e}")
 
