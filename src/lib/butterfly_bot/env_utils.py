@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 def load_environment():
     load_dotenv()
-    env_files = [key for key in os.environ.key() if key.endswith("_FILE")]
+    env_files = [key for key in os.environ.keys() if key.endswith("_FILE")]
 
     with contextlib.suppress(Exception):
         for env_file in env_files:
