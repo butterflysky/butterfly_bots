@@ -9,10 +9,10 @@ from discord.ext import commands
 from discord_slash import SlashCommand
 from version import get_bot_version
 
-load_environment()
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("adonis_blue")
+
+load_environment()
 
 intents = discord.Intents.default()
 intents.members = True
