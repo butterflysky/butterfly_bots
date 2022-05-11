@@ -1,4 +1,7 @@
 **/.env
+**/.*.env
 .idea
 **/__pycache__
 **.egg-info
+blah*
+docker-compose.testing.yml
