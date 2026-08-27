@@ -1,0 +1,46 @@
+[project]
+name = "adonis-blue"
+version = "0.3.5"
+description = "A Discord bot with a short conversational memory"
+requires-python = ">=3.11"
+dependencies = [
+    "butterfly-bot",
+    "discord.py>=2.6,<3",
+    "openai>=2,<3",
+    "python-dotenv>=1,<2",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17,<2",
+    "pytest>=8,<9",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.12,<1",
+]
+
+[tool.uv.sources]
+butterfly-bot = { path = "src/lib", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src/adonis_blue"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+packages = ["butterfly_bot"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/adonis_blue"]

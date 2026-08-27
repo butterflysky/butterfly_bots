@@ -1,178 +1,183 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import asyncio
 import datetime
 import logging
-import os
-from typing import Union
+from dataclasses import replace
+from typing import Any, TypeAlias, cast
 
+import discord
+from discord import app_commands
 from discord.ext import commands
-from discord_slash import SlashContext
-from discord_slash.cog_ext import cog_slash
-from discord_slash.context import InteractionContext, MenuContext
-from discord_slash.model import SlashCommandOptionType
-from discord_slash.utils.manage_commands import create_choice, create_option
+from openai import AsyncOpenAI, OpenAIError
 
+from .config import CompletionConfig
 from .discord_utils import MemberNameConverter
-from .openai_utils import ExchangeManager, complete_with_openai
+from .openai_utils import (
+    CompletionGate,
+    CompletionOverloaded,
+    CompletionTimedOut,
+    ExchangeManager,
+    NoOpenAIResponse,
+    complete_with_openai,
+)
 from .options import DiscordCompletionOptions, StoryOptions
-from .utils import pretty_time_delta, send_response, send_responses
+from .utils import pretty_time_delta, send_response
 
 logger = logging.getLogger(__name__)
-
-GUILD_IDS = [int(guild_id) for guild_id in os.getenv("GUILD_IDS").split(",")]
-
-DiscordContext = Union[commands.Context, SlashContext, MenuContext, InteractionContext]
+DiscordContext: TypeAlias = commands.Context | discord.Interaction
 
 
 async def send_openai_completion(
+    client: AsyncOpenAI,
+    gate: CompletionGate,
+    config: CompletionConfig,
     options: DiscordCompletionOptions,
-):
-    logger.info(f"send_openai_completion called with options: {options}")
-    async with options.ctx.channel.typing():
-        response = await complete_with_openai(options.prompt, options.stops)
-
-        await send_response(
-            options.with_attr("paginate", True),
-            response,
+) -> None:
+    logger.info("requesting completion with model=%s", config.model)
+    ctx = options.ctx
+    if ctx is None or ctx.channel is None:
+        raise RuntimeError("Discord context has no channel")
+    channel = cast(Any, ctx.channel)
+    async with channel.typing():
+        request_config = replace(
+            config,
+            temperature=options.temperature,
+            max_tokens=options.max_tokens,
+            top_p=options.top_p,
+            frequency_penalty=options.frequency_penalty,
+            presence_penalty=options.presence_penalty,
         )
+        response = await complete_with_openai(
+            client,
+            gate,
+            request_config,
+            options.prompt,
+            options.stops,
+            options.strip_response,
+        )
+        await send_response(options.with_attr("paginate", True), response)
 
 
 class OpenAIBot(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self, bot: commands.Bot, client: AsyncOpenAI, config: CompletionConfig
+    ):
         self.bot = bot
+        self.client = client
+        self.config = config
+        self.completion_gate = CompletionGate(config)
         self.exchange_manager = ExchangeManager(max_size=5)
         self.member_name_converter = MemberNameConverter()
 
     @commands.Cog.listener()
-    async def on_ready(self):
-        logger.info(f"Logged on as {self.bot.user.name}, {self.bot.user.id}")
+    async def on_ready(self) -> None:
+        user = self.bot.user
+        if user is not None:
+            logger.info("Logged on as %s, %s", user.name, user.id)
 
-    @cog_slash(
-        name="flush_chat_history",
-        guild_ids=GUILD_IDS,
-        description="Clear the bot's conversation history",
+    @app_commands.command(
+        name="flush_chat_history", description="Clear conversation history"
     )
-    async def flush_chat_history_slash(self, ctx: SlashContext):
-        self.exchange_manager.clear(ctx)
-        await ctx.send("I have forgotten everything we discussed.")
+    async def flush_chat_history_slash(self, interaction: discord.Interaction) -> None:
+        self.exchange_manager.clear(interaction)
+        await interaction.response.send_message(
+            "I have forgotten everything we discussed."
+        )
 
     @commands.command()
-    async def raw_openai(self, ctx: commands.Context, prompt, *stops: str):
-        """Sends a raw openai completion request given a prompt and a list of stops"""
-        options = StoryOptions(ctx=ctx, prompt=prompt, stops=stops)
-        await send_openai_completion(options)
+    async def raw_openai(self, ctx: commands.Context, prompt: str, *stops: str) -> None:
+        await send_openai_completion(
+            self.client,
+            self.completion_gate,
+            self.config,
+            StoryOptions(ctx=ctx, prompt=prompt, stops=stops),
+        )
 
     @commands.command()
-    async def flush_chat_history(self, ctx):
+    async def flush_chat_history(self, ctx: commands.Context) -> None:
         self.exchange_manager.clear(ctx)
         await ctx.send("_deprecated: use /flush_chat_history instead going forward")
         await ctx.send("I have forgotten everything we discussed.")
 
-    @cog_slash(
-        name="show_chat_history",
-        guild_ids=GUILD_IDS,
-        description="shows the bot's memory of recent chats",
-        options=[
-            create_option(
-                name="broadcast",
-                description="controls whether the history is shown to the entire channel, defaults to false",
-                required=False,
-                option_type=SlashCommandOptionType.BOOLEAN,
-            )
-        ],
+    @app_commands.command(
+        name="show_chat_history", description="Show recent chat memory"
     )
-    async def show_chat_history_slash(self, ctx: SlashContext, broadcast=False):
-        exchanges = self.exchange_manager.get(ctx)
-
-        if len(exchanges) == 0:
-            exchanges = "we haven't chatted lately"
-
-        await ctx.send(f"```{exchanges}```", hidden=(not broadcast))
+    @app_commands.describe(broadcast="Show history to the channel")
+    async def show_chat_history_slash(
+        self, interaction: discord.Interaction, broadcast: bool = False
+    ) -> None:
+        exchanges = (
+            self.exchange_manager.get(interaction) or "we haven't chatted lately"
+        )
+        await interaction.response.send_message(
+            f"```{exchanges}```", ephemeral=not broadcast
+        )
 
     @commands.command()
-    async def show_chat_history(self, ctx):
-        exchanges = self.exchange_manager.get(ctx)
-
-        if len(exchanges) == 0:
-            exchanges = "we haven't chatted lately"
-
-        await send_responses(DiscordCompletionOptions(ctx=ctx), exchanges)
+    async def show_chat_history(self, ctx: commands.Context) -> None:
+        exchanges = self.exchange_manager.get(ctx) or "we haven't chatted lately"
+        await send_response(DiscordCompletionOptions(ctx=ctx), exchanges)
 
     @commands.command()
-    async def story(self, ctx, *words: str):
-        options = StoryOptions(ctx=ctx, prompt=" ".join(words))
-        await self._story_stub(options)
+    async def story(self, ctx: commands.Context, *words: str) -> None:
+        await self._story_stub(StoryOptions(ctx=ctx, prompt=" ".join(words)))
 
-    @cog_slash(
-        name="story",
-        guild_ids=GUILD_IDS,
-        description="prompts the bot to write a short story",
-        options=[
-            create_option(
-                name="prompt",
-                description="story prompt",
-                required=True,
-                option_type=SlashCommandOptionType.STRING,
-            ),
-            create_option(
-                name="prompt_prelude",
-                description="this is the 'You are an author, write a story about:' prelude to the prompt",
-                required=False,
-                option_type=SlashCommandOptionType.STRING,
-            ),
-            create_option(
-                name="stops",
-                description="these are the tokens that cause OpenAI to stop the completion",
-                required=False,
-                option_type=SlashCommandOptionType.STRING,
-            ),
-            create_option(
-                name="engine",
-                description="which OpenAI completion engine to use (default: davinci-instruct-beta)",
-                required=False,
-                option_type=SlashCommandOptionType.STRING,
-                choices=[
-                    create_choice("davinci-instruct-beta", "davinci-instruct-beta"),
-                    create_choice("curie-instruct-beta", "curie-instruct-beta"),
-                    create_choice("davinci", "davinci"),
-                    create_choice("curie", "curie"),
-                    create_choice("babbage", "babbage"),
-                    create_choice("ada", "ada"),
-                ],
-            ),
-            create_option(
-                name="temperature",
-                description="What sampling temperature to use. Higher values means the model will take more risks.",
-                required=False,
-                option_type=SlashCommandOptionType.FLOAT,
-            ),
-            create_option(
-                name="top_p",
-                description="see https://beta.openai.com/docs/api-reference/completions/create#completions/create"
-                "-top_p",
-                required=False,
-                option_type=SlashCommandOptionType.FLOAT,
-            ),
-            create_option(
-                name="frequency_penalty",
-                description="see https://beta.openai.com/docs/api-reference/completions/create"
-                "-frequency_penalty",
-                required=False,
-                option_type=SlashCommandOptionType.FLOAT,
-            ),
-            create_option(
-                name="presence_penalty",
-                description="see https://beta.openai.com/docs/api-reference/completions/create",
-                required=False,
-                option_type=SlashCommandOptionType.FLOAT,
-            ),
-        ],
+    @app_commands.command(name="story", description="Write a short story")
+    @app_commands.describe(
+        prompt="Story prompt",
+        prompt_prelude="Prelude containing an optional {prompt} placeholder",
+        stops="JSON list of stop tokens",
+        temperature="Sampling temperature",
+        top_p="Nucleus sampling probability",
+        frequency_penalty="Frequency penalty",
+        presence_penalty="Presence penalty",
     )
-    async def story_slash(self, ctx: SlashContext, **kwargs):
-        await ctx.defer(hidden=False)
-        await self._story_stub(StoryOptions(ctx=ctx, **kwargs))
+    async def story_slash(
+        self,
+        interaction: discord.Interaction,
+        prompt: str,
+        prompt_prelude: str | None = None,
+        stops: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
+    ) -> None:
+        await interaction.response.defer()
+        kwargs: dict[str, object] = {"ctx": interaction, "prompt": prompt}
+        for key, value in {
+            "prompt_prelude": prompt_prelude,
+            "stops": stops,
+            "temperature": temperature,
+            "top_p": top_p,
+            "frequency_penalty": frequency_penalty,
+            "presence_penalty": presence_penalty,
+        }.items():
+            if value is not None:
+                kwargs[key] = value
+        try:
+            await self._story_stub(StoryOptions(**cast(Any, kwargs)))
+        except (
+            CompletionOverloaded,
+            CompletionTimedOut,
+            NoOpenAIResponse,
+            OpenAIError,
+            IndexError,
+            KeyError,
+            ValueError,
+        ):
+            logger.warning("slash story completion failed")
+            async with asyncio.timeout(10):
+                await interaction.followup.send(
+                    "I couldn't finish that story request. Please try again shortly.",
+                    ephemeral=True,
+                )
 
-    async def _story_stub(self, options: StoryOptions):
-        """Returns a short story based on your prompt"""
+    async def _story_stub(self, options: StoryOptions) -> None:
+        if options.ctx is None:
+            raise RuntimeError("Story request has no Discord context")
         if "{prompt}" not in options.prompt_prelude:
             options.prompt_prelude += "\n{prompt}\nStory:"
         options.prompt = await self.convert_discord_refs_to_names(
@@ -180,118 +185,105 @@ class OpenAIBot(commands.Cog):
         )
         options.prompt = options.prompt_prelude.format(prompt=options.prompt)
         options.stops = ["Story:"]
-        await send_openai_completion(options)
+        await send_openai_completion(
+            self.client, self.completion_gate, self.config, options
+        )
 
     @commands.command()
-    async def tarot(self, ctx, *words: str):
-        """Returns a tarot reading based on your prompt"""
+    async def tarot(self, ctx: commands.Context, *words: str) -> None:
         message = await self.convert_discord_refs_to_names(ctx, words)
-        options = StoryOptions(
-            ctx=ctx,
-            stops=["Your reading:"],
-            prompt=(
-                f"You're a tarot reader. Give a tarot reading for the following prompt:\n\n"
-                f"Prompt: {message}\n"
-                f"Your reading:"
+        await send_openai_completion(
+            self.client,
+            self.completion_gate,
+            self.config,
+            StoryOptions(
+                ctx=ctx,
+                stops=["Your reading:"],
+                prompt="You're a tarot reader. Give a tarot reading for the following "
+                "prompt:\n\n"
+                f"Prompt: {message}\nYour reading:",
             ),
         )
-        await send_openai_completion(options)
 
     @commands.command()
-    async def code(self, ctx, language: str, *words: str):
-        """Returns code based on your prompt"""
+    async def code(self, ctx: commands.Context, language: str, *words: str) -> None:
         message = await self.convert_discord_refs_to_names(ctx, words)
-        if message == "":
+        if not message:
             return
-        options = StoryOptions(
-            ctx=ctx,
-            stops=["Your code:"],
-            prompt=(
-                f"Write a function in {language} that fits the following prompt:\n\n"
-                f"Prompt: {message}\n"
-                f"Your code:"
+        await send_openai_completion(
+            self.client,
+            self.completion_gate,
+            self.config,
+            StoryOptions(
+                ctx=ctx,
+                stops=["Your code:"],
+                prompt=f"Write a function in {language} that fits the following "
+                "prompt:\n\n"
+                f"Prompt: {message}\nYour code:",
             ),
         )
-        await send_openai_completion(options)
 
     @commands.command()
-    async def chat(self, ctx, *words: str):
-        """Sends a prompt to openai and returns the result, keeping 5 exchanges as context"""
-        # sort and concatenate each of the mentioned usernames then hash the resulting string
-        # as a key for the exchange cache
+    async def chat(self, ctx: commands.Context, *words: str) -> None:
+        user = self.bot.user
+        if user is None:
+            raise RuntimeError("Discord client user is unavailable")
         stops = [
             f" {ctx.author.display_name}:",
-            f" {self.bot.user.display_name}:",
+            f" {user.display_name}:",
             "\n",
         ]
         message = await self.convert_discord_refs_to_names(ctx, words)
         prompt = (
-            f"Your name is {self.bot.user.display_name}. You're thoughtful, kind, and witty. "
-            f"Continue the following conversation with your friends:\n\n"
+            f"Your name is {user.display_name}. You're thoughtful, kind, "
+            "and witty. "
+            "Continue the following conversation with your friends:\n\n"
+            + self.exchange_manager.get(ctx)
         )
-
-        # append previous exchanges to the prompt
-        prompt += self.exchange_manager.get(ctx)
-
-        # add new exchange prompt
-        new_exchange = (
-            f"{ctx.author.display_name}: {message}\n" f"{self.bot.user.display_name}:"
-        )
-
-        # todo: what happens if there's no answer?
+        new_exchange = f"{ctx.author.display_name}: {message}\n{user.display_name}:"
         answer = await complete_with_openai(
-            prompt + new_exchange, stops, strip_response=True
+            self.client,
+            self.completion_gate,
+            self.config,
+            prompt + new_exchange,
+            stops,
+            True,
         )
         await ctx.send(answer)
+        self.exchange_manager.append(ctx, new_exchange + f" {answer}\n")
 
-        # update exchanges for next chat
-        new_exchange += f" {answer}\n"
-        self.exchange_manager.append(ctx, new_exchange)
-
-    async def convert_discord_refs_to_names(self, ctx: DiscordContext, words):
+    async def convert_discord_refs_to_names(
+        self, ctx: DiscordContext, words: str | tuple[str, ...]
+    ) -> str:
         if isinstance(words, str):
-            words = words.split(" ")
-        message = " ".join(
+            words = tuple(words.split(" "))
+        return " ".join(
             [await self.member_name_converter.convert(ctx, word) for word in words]
         )
-        return message
 
     @commands.Cog.listener()
-    async def on_command_error(self, ctx: commands.Context, exc: Exception):
-        if exc.__class__ != commands.errors.CommandNotFound:
+    async def on_command_error(self, ctx: commands.Context, exc: Exception) -> None:
+        if not isinstance(exc, commands.CommandNotFound):
             await ctx.send(f"an exception occurred: {exc}")
             raise exc
-        else:
-            invoker = "chat"
-            ctx.message.content = f"{ctx.invoked_with} {ctx.message.content}"
-            ctx.view.index = ctx.view.previous
-
-            ctx.invoked_with = invoker
-            ctx.command = self.bot.all_commands.get(invoker)
-            await self.bot.invoke(ctx)
+        ctx.message.content = f"{ctx.invoked_with} {ctx.message.content}"
+        ctx.view.index = ctx.view.previous
+        ctx.invoked_with = "chat"
+        ctx.command = self.bot.all_commands.get("chat")
+        await self.bot.invoke(ctx)
 
 
 class UtilityBot(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._start_time = datetime.datetime.now()
 
-    @cog_slash(
-        name="uptime",
-        guild_ids=GUILD_IDS,
-        description="shows how long the bot has been running since its last restart",
-        options=[
-            create_option(
-                name="show_channel",
-                description="should the response be shown to the channel, defaults to false",
-                required=False,
-                option_type=SlashCommandOptionType.BOOLEAN,
-            )
-        ],
-    )
-    async def uptime(self, ctx: SlashContext, show_channel: bool = False):
+    @app_commands.command(name="uptime", description="Show bot uptime")
+    @app_commands.describe(show_channel="Show the response to the whole channel")
+    async def uptime(
+        self, interaction: discord.Interaction, show_channel: bool = False
+    ) -> None:
         uptime = datetime.datetime.now() - self._start_time
-        await ctx.send(
-            f"{pretty_time_delta(int(uptime.total_seconds()))}",
-            hidden=(not show_channel),
+        await interaction.response.send_message(
+            pretty_time_delta(int(uptime.total_seconds())), ephemeral=not show_channel
         )
