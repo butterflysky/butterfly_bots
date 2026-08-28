@@ -60,6 +60,15 @@ class AdonisBlue(commands.Bot):
         self.completion_config = config
         self.guild_ids = guild_ids
 
+    async def process_commands(self, message: discord.Message, /) -> None:
+        """Process human and peer-bot commands while ignoring our own messages."""
+        user = self.user
+        if user is not None and message.author.id == user.id:
+            return
+
+        ctx = await self.get_context(message)
+        await self.invoke(ctx)
+
     async def setup_hook(self) -> None:
         await self.add_cog(OpenAIBot(self, self.openai_client, self.completion_config))
         await self.add_cog(UtilityBot(self))

@@ -39,6 +39,15 @@ def client_with_text(text: str = "bar") -> MagicMock:
     return client
 
 
+def incoming_message(author_id: int, *, is_bot: bool, content: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        author=SimpleNamespace(id=author_id, bot=is_bot),
+        channel=SimpleNamespace(send=AsyncMock()),
+        content=content,
+        _state=MagicMock(),
+    )
+
+
 @pytest.mark.asyncio
 async def test_completion_uses_exact_model_and_parameters() -> None:
     client = client_with_text(" bar ")
@@ -122,6 +131,80 @@ def test_bot_rejects_programmatic_global_sync() -> None:
 
     with pytest.raises(ValueError, match="at least one guild"):
         build_bot(client_with_text(), CompletionConfig(), ())
+
+
+@pytest.mark.asyncio
+async def test_human_prefix_command_processing_is_unchanged() -> None:
+    from adonis_blue.adonis_blue import build_bot, version_command
+
+    bot = build_bot(client_with_text(), CompletionConfig(), (123,))
+    bot._connection.user = SimpleNamespace(id=999, bot=True)
+    message = incoming_message(111, is_bot=False, content="!version")
+
+    with patch.object(bot, "invoke", new=AsyncMock()) as invoke:
+        await bot.process_commands(message)
+
+    ctx = invoke.await_args.args[0]
+    assert ctx.command is version_command
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_adonis_ignores_its_own_messages() -> None:
+    from adonis_blue.adonis_blue import build_bot
+
+    bot = build_bot(client_with_text(), CompletionConfig(), (123,))
+    bot._connection.user = SimpleNamespace(id=999, bot=True)
+    message = incoming_message(999, is_bot=True, content="!version")
+
+    with (
+        patch.object(bot, "get_context", new=AsyncMock()) as get_context,
+        patch.object(bot, "invoke", new=AsyncMock()) as invoke,
+    ):
+        await bot.process_commands(message)
+
+    get_context.assert_not_awaited()
+    invoke.assert_not_awaited()
+    await bot.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("content", ["<@999> version", "!version"])
+async def test_other_bot_mention_or_prefix_command_is_processed(content: str) -> None:
+    from adonis_blue.adonis_blue import build_bot, version_command
+
+    bot = build_bot(client_with_text(), CompletionConfig(), (123,))
+    bot._connection.user = SimpleNamespace(id=999, bot=True)
+    message = incoming_message(222, is_bot=True, content=content)
+
+    with patch.object(bot, "invoke", new=AsyncMock()) as invoke:
+        await bot.process_commands(message)
+
+    ctx = invoke.await_args.args[0]
+    assert ctx.command is version_command
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_other_bot_non_command_chatter_does_not_dispatch_or_reply() -> None:
+    from adonis_blue.adonis_blue import build_bot
+
+    bot = build_bot(client_with_text(), CompletionConfig(), (123,))
+    bot._connection.user = SimpleNamespace(id=999, bot=True)
+    message = incoming_message(222, is_bot=True, content="ambient bot chatter")
+
+    with (
+        patch.object(bot, "invoke", new=AsyncMock(wraps=bot.invoke)) as invoke,
+        patch.object(bot, "dispatch") as dispatch,
+    ):
+        await bot.process_commands(message)
+
+    ctx = invoke.await_args.args[0]
+    assert ctx.command is None
+    assert ctx.invoked_with is None
+    dispatch.assert_not_called()
+    message.channel.send.assert_not_awaited()
+    await bot.close()
 
 
 def test_import_is_logging_inert_and_startup_enables_info() -> None:
