@@ -3,9 +3,7 @@ services:
   adonis_blue:
     build:
       context: .
-      args:
-        - BOT_NAME=adonis_blue
-    image: butterfly/adonis_blue:0.3.5
+    image: ${ADONIS_BLUE_IMAGE:-butterfly/adonis_blue}
     env_file:
       - ./src/adonis_blue/.env
     container_name: adonis_blue

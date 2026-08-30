@@ -1,7 +1,7 @@
-from typing import Iterable, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import Any
 
-from discord import Message
-from discord_slash.context import InteractionContext
+from discord import Interaction
 
 from .options import DiscordResponseOptions, PaginateOptions
 from .response import ResponseTarget
@@ -18,24 +18,34 @@ async def send_responses(
     options: DiscordResponseOptions,
     responses: Sequence[str],
 ) -> None:
-    if options.respond_to is None and options.ctx.message is not None:
-        options.respond_to = options.ctx.message
+    ctx = options.ctx
+    if ctx is None:
+        raise RuntimeError("Discord response has no context")
+    if options.respond_to is None and getattr(ctx, "message", None) is not None:
+        options.respond_to = ctx.message
     async for part in paginate(options, responses):
         last_message = await send_message(options, part)
         if options.response_target is ResponseTarget.LAST_MESSAGE:
             options.respond_to = last_message
 
 
-async def send_message(
-    options: DiscordResponseOptions, content: str
-) -> Optional[Message]:
+async def send_message(options: DiscordResponseOptions, content: str) -> Any:
     """sends a Discord message according to the underlying API's context semantics"""
-    if isinstance(options.ctx, InteractionContext):
-        last_message = await options.ctx.send(content=content)
+    ctx = options.ctx
+    if ctx is None:
+        raise RuntimeError("Discord response has no context")
+    last_message: Any
+    if isinstance(ctx, Interaction):
+        if ctx.response.is_done():
+            last_message = await ctx.followup.send(content=content, wait=True)
+        else:
+            await ctx.response.send_message(content=content)
+            last_message = await ctx.original_response()
     else:
-        last_message = await options.ctx.channel.send(
-            content=content, reference=options.respond_to, mention_author=True
-        )
+        kwargs: dict[str, Any] = {"content": content, "mention_author": True}
+        if options.respond_to is not None:
+            kwargs["reference"] = options.respond_to
+        last_message = await ctx.channel.send(**kwargs)
     return last_message
 
 
@@ -44,16 +54,16 @@ def pretty_time_delta(seconds: int):
     hours, seconds = divmod(seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
     if days > 0:
-        return "%dd%dh%dm%ds" % (days, hours, minutes, seconds)
+        return f"{days}d{hours}h{minutes}m{seconds}s"
     elif hours > 0:
-        return "%dh%dm%ds" % (hours, minutes, seconds)
+        return f"{hours}h{minutes}m{seconds}s"
     elif minutes > 0:
-        return "%dm%ds" % (minutes, seconds)
+        return f"{minutes}m{seconds}s"
     else:
-        return "%ds" % (seconds,)
+        return f"{seconds}s"
 
 
-def split_string(string: str, length: int) -> Tuple[str, str]:
+def split_string(string: str, length: int) -> tuple[str, str]:
     """splits a string on the word boundary right before the specified length"""
     split_point = string[:length].rfind(" ")
 
